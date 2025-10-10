@@ -1,0 +1,32 @@
+# Source
+/src/
+index.ts
+examples/
+tests/
+
+# Config files
+eslint.config.mjs
+.prettierrc
+.prettierignore
+tsconfig.json
+.env*
+.vscode/
+.github/
+
+# Development files
+*.log
+*.tsbuildinfo
+coverage/
+.nyc_output/
+.DS_Store
+
+# Dependencies
+node_modules/
+
+# Git
+.git/
+.gitignore
+dist/tests
+tsconfig.tests.json
+examples
+*.tgz
