@@ -4,6 +4,7 @@ import { ObjectId } from './objectid'
 import { QueryBuilder } from './query-builder'
 import { DocumentQueryBuilder } from './document-query-builder'
 import { FindQueryBuilder } from './find-query-builder'
+import { QueryableKeys } from './type-utils'
 
 // Symbols for internal document properties (non-enumerable)
 const ORIGINAL_DOC = Symbol('originalDoc')
@@ -46,7 +47,7 @@ export type QueryValue<T = any> = T | QueryOperator<T>
 
 // Query object with field names as keys
 export type Query<T extends Record<string, any> = Record<string, any>> = {
-  [K in keyof T]?: QueryValue<T[K]>
+  [K in QueryableKeys<T>]?: QueryValue<T[K]>
 }
 
 // Update operators
@@ -443,12 +444,13 @@ export class Model<T extends Record<string, any>> {
   // Helper to efficiently find documents using indexes when possible
   private _findDocumentsUsingIndexes(query: Query<T>): T[] {
     const keys = Object.keys(query)
+    const queryRecord = query as Record<string, any>
 
     // Return copy of all documents if no query (to avoid mutation during iteration)
     if (keys.length === 0) return [...this._data]
 
     // Check if we can use an index (all fields must be simple equality)
-    const allSimpleEquality = keys.every(k => typeof query[k as keyof T] !== 'object')
+    const allSimpleEquality = keys.every(k => typeof queryRecord[k] !== 'object')
 
     if (allSimpleEquality && keys.length > 0) {
       const sortedKeys = keys.sort()
@@ -457,7 +459,9 @@ export class Model<T extends Record<string, any>> {
       // Try exact index match first
       const exactIndex = this._indexes.get(indexKey)
       if (exactIndex) {
-        const compositeKey = sortedKeys.map(k => String(query[k as keyof T])).join(':')
+        const compositeKey = sortedKeys
+          .map(k => String((queryRecord as Record<string, unknown>)[k]))
+          .join(':')
         return exactIndex.map.get(compositeKey) || []
       }
 
@@ -466,11 +470,13 @@ export class Model<T extends Record<string, any>> {
         const idxFieldStrs = indexMeta.fields.map(String)
 
         const allIndexFieldsInQuery = idxFieldStrs.every(
-          f => keys.includes(f) && typeof query[f as keyof T] !== 'object'
+          f => keys.includes(f) && typeof queryRecord[f] !== 'object'
         )
 
         if (allIndexFieldsInQuery) {
-          const compositeKey = indexMeta.fields.map(f => String(query[f])).join(':')
+          const compositeKey = (indexMeta.fields as Array<string>)
+            .map(field => String((queryRecord as Record<string, unknown>)[field]))
+            .join(':')
           const candidates = indexMeta.map.get(compositeKey) || []
           return candidates.filter(doc => this._matches(doc, query))
         }
@@ -590,9 +596,10 @@ export class Model<T extends Record<string, any>> {
       await this._executePreHooks('findOne', { query })
 
       const keys = Object.keys(query)
+      const queryRecord = query as Record<string, any>
 
       // Check if we can use an index (all fields must be simple equality)
-      const allSimpleEquality = keys.every(k => typeof query[k as keyof T] !== 'object')
+      const allSimpleEquality = keys.every(k => typeof queryRecord[k] !== 'object')
 
       let doc: T | null = null
 
@@ -603,7 +610,9 @@ export class Model<T extends Record<string, any>> {
         // Try exact index match first
         const exactIndex = this._indexes.get(indexKey)
         if (exactIndex) {
-          const compositeKey = sortedKeys.map(k => String(query[k as keyof T])).join(':')
+          const compositeKey = sortedKeys
+            .map(k => String((queryRecord as Record<string, unknown>)[k]))
+            .join(':')
           const indexedDocs = exactIndex.map.get(compositeKey) || []
           doc = indexedDocs.length ? indexedDocs[0] : null
         } else {
@@ -613,12 +622,15 @@ export class Model<T extends Record<string, any>> {
 
             // Check if all index fields are in the query (with simple equality)
             const allIndexFieldsInQuery = idxFieldStrs.every(
-              f => keys.includes(f) && typeof query[f as keyof T] !== 'object'
+              f =>
+                keys.includes(f) && typeof (queryRecord as Record<string, unknown>)[f] !== 'object'
             )
 
             if (allIndexFieldsInQuery) {
               // Use this partial index
-              const compositeKey = indexMeta.fields.map(f => String(query[f])).join(':')
+              const compositeKey = (indexMeta.fields as Array<string>)
+                .map(field => String((queryRecord as Record<string, unknown>)[field]))
+                .join(':')
               const candidates = indexMeta.map.get(compositeKey) || []
 
               // Filter candidates with remaining query conditions
@@ -674,6 +686,7 @@ export class Model<T extends Record<string, any>> {
     }
 
     const keys = Object.keys(query)
+    const queryRecord = query as Record<string, any>
 
     // Get base results
     let results: T[] = []
@@ -683,7 +696,7 @@ export class Model<T extends Record<string, any>> {
       results = [...this._data]
     } else {
       // Check if we can use an index (all fields must be simple equality)
-      const allSimpleEquality = keys.every(k => typeof query[k as keyof T] !== 'object')
+      const allSimpleEquality = keys.every(k => typeof queryRecord[k] !== 'object')
 
       if (allSimpleEquality) {
         // Use the optimized helper method

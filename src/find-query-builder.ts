@@ -1,8 +1,9 @@
 import { DocumentQueryBuilder, QueryOptions } from './document-query-builder'
+import { QueryableKeys } from './type-utils'
 
 // Type imports needed for Model reference
 export type Query<T extends Record<string, any> = Record<string, any>> = {
-  [K in keyof T]?: any
+  [K in QueryableKeys<T>]?: any
 }
 
 // FindQueryBuilder - for find() operations that return arrays

@@ -1,4 +1,5 @@
 import { QueryBuilder } from './query-builder'
+import { QueryableKeys } from './type-utils'
 
 // Type definitions needed from model.ts
 export type QueryOptions<T = any> = {
@@ -10,7 +11,7 @@ export type QueryOptions<T = any> = {
 }
 
 export type Query<T extends Record<string, any> = Record<string, any>> = {
-  [K in keyof T]?: any
+  [K in QueryableKeys<T>]?: any
 }
 
 // DocumentQueryBuilder - for operations that return documents
