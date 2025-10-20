@@ -1,0 +1,156 @@
+{
+  "system": {
+    "platform": "darwin 25.1.0",
+    "arch": "arm64",
+    "cpus": "Apple M4 Max (16 cores)",
+    "memory": "128GB",
+    "nodeVersion": "v24.8.0"
+  },
+  "indexPerformance": {
+    "datasetSizes": {
+      "1000": {
+        "noIndex": 0.42,
+        "singleIndex": 0.05,
+        "compoundIndex": 0.01
+      },
+      "10000": {
+        "noIndex": 1.9,
+        "singleIndex": 0.06,
+        "compoundIndex": 0.01
+      },
+      "100000": {
+        "noIndex": 9.85,
+        "singleIndex": 0.06,
+        "compoundIndex": 0.03
+      }
+    },
+    "indexedVsNonIndexed": {
+      "equalityQuery": {
+        "indexed": 0,
+        "nonIndexed": 2.08,
+        "speedup": 482
+      },
+      "compoundQuery": {
+        "indexed": 0,
+        "nonIndexed": 2.08,
+        "speedup": 1306
+      },
+      "findMany": {
+        "indexed": 11.56,
+        "nonIndexed": 10.89,
+        "speedup": 0.9
+      },
+      "count": {
+        "indexed": 11.87,
+        "nonIndexed": 25.81,
+        "speedup": 2
+      },
+      "update": {
+        "indexed": 0.03,
+        "nonIndexed": 2.13,
+        "speedup": 85
+      },
+      "delete": {
+        "indexed": 0.07
+      },
+      "leanQuery": {
+        "time": 0.63,
+        "speedup": 18.4
+      }
+    }
+  },
+  "storagePerformance": {
+    "insert10k": {
+      "Memory": {
+        "time": 35,
+        "throughput": 285714
+      },
+      "File": {
+        "time": 480,
+        "throughput": 20833
+      },
+      "SQLite": {
+        "time": 79,
+        "throughput": 126582
+      },
+      "WiredTiger": {
+        "time": 58,
+        "throughput": 172414
+      }
+    },
+    "indexedQuery100k": {
+      "Memory": 0.06,
+      "File": 0.16,
+      "SQLite": 0.21,
+      "WiredTiger": 0.14
+    },
+    "bulkInsert100k": {
+      "Memory": {
+        "time": 263,
+        "throughput": 380228
+      },
+      "SQLite": {
+        "time": 790,
+        "throughput": 126582
+      },
+      "WiredTiger": {
+        "time": 520,
+        "throughput": 192308
+      }
+    }
+  },
+  "operationBenchmarks": {
+    "findOne": 0.06,
+    "find10": 0.07,
+    "find100": 0.06,
+    "countDocuments": 12.7,
+    "distinct": 1.58,
+    "updateOne": 0.09,
+    "updateMany1000": 113.59,
+    "deleteOne": 0.17,
+    "insertMany1000": 43.08
+  },
+  "leanPerformance": {
+    "findOne": {
+      "regular": 0.072,
+      "lean": 0.011,
+      "speedup": 6.8
+    },
+    "find100": {
+      "regular": 0.08,
+      "lean": 0.02,
+      "speedup": 3.3
+    },
+    "find1000": {
+      "regular": 0.32,
+      "lean": 0.01,
+      "speedup": 27.2
+    }
+  },
+  "storageComparison": {
+    "File": {
+      "insert10k": 480,
+      "query": 0.01,
+      "update": 0.41,
+      "delete": 0.09
+    },
+    "SQLite": {
+      "insert10k": 79,
+      "query": 0.01,
+      "update": 0.26,
+      "delete": 0.13
+    },
+    "WiredTiger": {
+      "insert10k": 58,
+      "query": 0.01,
+      "update": 1.07,
+      "delete": 0.37
+    },
+    "Memory": {
+      "insert10k": 35,
+      "query": 0.06,
+      "update": 0.5,
+      "delete": 0.5
+    }
+  }
+}

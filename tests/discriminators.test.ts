@@ -18,6 +18,8 @@ interface CatDoc extends AnimalDoc {
 }
 
 test('Discriminators', async t => {
+  t.beforeEach(async () => await clearRegistry())
+
   await t.test('should create discriminator model', async () => {
     clearRegistry()
 

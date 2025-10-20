@@ -1,8 +1,10 @@
 import { test } from 'node:test'
 import assert from 'node:assert'
-import { model, ObjectId, Schema } from '../index'
+import { model, ObjectId, Schema, clearRegistry } from '../index'
 
 test('Upsert and New Options', async t => {
+  t.beforeEach(async () => await clearRegistry())
+
   await t.test(
     'should create document when upsert is true and document does not exist',
     async () => {

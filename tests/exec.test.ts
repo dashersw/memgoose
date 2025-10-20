@@ -1,8 +1,10 @@
 import { test } from 'node:test'
 import assert from 'node:assert'
-import { model, Schema } from '../index'
+import { model, Schema, clearRegistry } from '../index'
 
 test('exec() functionality', async t => {
+  t.beforeEach(async () => await clearRegistry())
+
   await t.test('find() should support .exec()', async () => {
     const User = model('User', new Schema({}))
     await User.insertMany([

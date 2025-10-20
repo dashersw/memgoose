@@ -138,3 +138,13 @@ vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 
 dist
+
+# WiredTiger storage directories
+data/
+
+# WiredTiger build artifacts
+build/
+*.node
+
+# WiredTiger lib (downloaded)
+lib/lib/

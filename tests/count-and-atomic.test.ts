@@ -1,9 +1,11 @@
 import { test } from 'node:test'
 import assert from 'node:assert'
-import { model, Schema, ObjectId } from '../index'
+import { model, Schema, ObjectId, clearRegistry } from '../index'
 import { testUsers } from './fixtures'
 
 test('Count and Atomic Operations', async t => {
+  t.beforeEach(async () => await clearRegistry())
+
   await t.test('should count all documents', async () => {
     const User = model('User', new Schema({}))
     await User.insertMany(testUsers)

@@ -1,8 +1,10 @@
 import { test } from 'node:test'
 import assert from 'node:assert'
-import { Schema, model } from '../index'
+import { Schema, model, clearRegistry } from '../index'
 
 test('Schema and Model Factory', async t => {
+  t.beforeEach(async () => await clearRegistry())
+
   await t.test('should create model from schema', async () => {
     const userSchema = new Schema({
       name: String,

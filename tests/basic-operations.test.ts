@@ -1,9 +1,11 @@
 import { test } from 'node:test'
 import assert from 'node:assert'
-import { model, Schema } from '../index'
+import { model, Schema, clearRegistry } from '../index'
 import { testUsers } from './fixtures'
 
 test('Model - Basic Operations', async t => {
+  t.beforeEach(async () => await clearRegistry())
+
   await t.test('should find document with simple equality query', async () => {
     const User = model('User1', new Schema({}))
     await User.insertMany(testUsers)

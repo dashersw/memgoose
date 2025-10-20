@@ -10,6 +10,8 @@ interface UserDoc {
 }
 
 test('Field Getters and Setters', async t => {
+  t.beforeEach(async () => await clearRegistry())
+
   await t.test('should apply setter when creating document', async () => {
     const userSchema = new Schema<UserDoc>({
       name: String,

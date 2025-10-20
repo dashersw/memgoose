@@ -16,8 +16,10 @@ interface PostDoc {
 }
 
 test('Populate', async t => {
+  t.beforeEach(async () => await clearRegistry())
+
   await t.test('should populate referenced document', async () => {
-    clearRegistry()
+    await clearRegistry()
 
     const authorSchema = new Schema<AuthorDoc>({
       name: String,
@@ -50,7 +52,7 @@ test('Populate', async t => {
   })
 
   await t.test('should handle missing referenced document', async () => {
-    clearRegistry()
+    await clearRegistry()
 
     const postSchema = new Schema<PostDoc>({
       title: String,
@@ -72,7 +74,7 @@ test('Populate', async t => {
   })
 
   await t.test('should populate multiple documents', async () => {
-    clearRegistry()
+    await clearRegistry()
 
     const authorSchema = new Schema<AuthorDoc>({
       name: String,
@@ -108,7 +110,7 @@ test('Populate', async t => {
   })
 
   await t.test('should work with findOne and populate', async () => {
-    clearRegistry()
+    await clearRegistry()
 
     const postSchema = new Schema<PostDoc>({
       title: String,
@@ -135,7 +137,7 @@ test('Populate', async t => {
   })
 
   await t.test('should populate multiple fields', async () => {
-    clearRegistry()
+    await clearRegistry()
 
     interface CommentDoc {
       _id?: ObjectId
@@ -172,7 +174,7 @@ test('Populate', async t => {
   })
 
   await t.test('should not populate when ref field has no value', async () => {
-    clearRegistry()
+    await clearRegistry()
 
     const postSchema = new Schema<Partial<PostDoc>>({
       title: String,
@@ -192,7 +194,7 @@ test('Populate', async t => {
   })
 
   await t.test('should not populate when ref model not found', async () => {
-    clearRegistry()
+    await clearRegistry()
 
     const postSchema = new Schema<PostDoc>({
       title: String,
@@ -213,7 +215,7 @@ test('Populate', async t => {
   })
 
   await t.test('should handle populate on field without ref option', async () => {
-    clearRegistry()
+    await clearRegistry()
 
     const postSchema = new Schema<PostDoc>({
       title: String,
@@ -235,7 +237,7 @@ test('Populate', async t => {
   })
 
   await t.test('should handle populate with empty fields array', async () => {
-    clearRegistry()
+    await clearRegistry()
 
     const postSchema = new Schema<PostDoc>({
       title: String,
@@ -259,7 +261,7 @@ test('Populate', async t => {
   })
 
   await t.test('should handle populate when field has no ref', async () => {
-    clearRegistry()
+    await clearRegistry()
 
     const postSchema = new Schema<PostDoc>({
       title: String,
@@ -281,7 +283,7 @@ test('Populate', async t => {
   })
 
   await t.test('should handle chaining multiple populate calls', async () => {
-    clearRegistry()
+    await clearRegistry()
 
     const postSchema = new Schema<PostDoc>({
       title: String,
@@ -303,7 +305,7 @@ test('Populate', async t => {
   })
 
   await t.test('should append populate fields when array provided', async () => {
-    clearRegistry()
+    await clearRegistry()
 
     const Post = model(
       'Post',
@@ -323,7 +325,7 @@ test('Populate', async t => {
   })
 
   await t.test('should fallback to empty array when populate storage missing', async () => {
-    clearRegistry()
+    await clearRegistry()
 
     const Post = model('Post', new Schema({ title: String }))
 
@@ -336,7 +338,7 @@ test('Populate', async t => {
   })
 
   await t.test('should populate with string parameter on findOne', async () => {
-    clearRegistry()
+    await clearRegistry()
 
     const Author = model('Author', new Schema({ name: String }))
     const Post = model(
@@ -357,7 +359,7 @@ test('Populate', async t => {
   })
 
   await t.test('should populate on findOne with query', async () => {
-    clearRegistry()
+    await clearRegistry()
 
     const Author = model('Author', new Schema({ name: String }))
     const Post = model(
@@ -378,7 +380,7 @@ test('Populate', async t => {
   })
 
   await t.test('should handle populate with missing referenced document on findOne', async () => {
-    clearRegistry()
+    await clearRegistry()
 
     model('Author', new Schema({ name: String }))
     const Post = model(
@@ -398,7 +400,7 @@ test('Populate', async t => {
   })
 
   await t.test('should handle findOne returning null with populate', async () => {
-    clearRegistry()
+    await clearRegistry()
 
     const User = model('User', new Schema({ name: String }))
 
@@ -408,7 +410,7 @@ test('Populate', async t => {
   })
 
   await t.test('should populate with string parameter on find', async () => {
-    clearRegistry()
+    await clearRegistry()
 
     const Author = model('Author', new Schema({ name: String }))
     const Post = model(
@@ -429,7 +431,7 @@ test('Populate', async t => {
   })
 
   await t.test('should handle populate results returning undefined', async () => {
-    clearRegistry()
+    await clearRegistry()
 
     model('Author', new Schema({ name: String }))
     const Post = model(

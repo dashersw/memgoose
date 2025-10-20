@@ -3,6 +3,8 @@ import assert from 'node:assert'
 import { model, Schema, clearRegistry } from '../index'
 
 test('Document Save Method', async t => {
+  t.beforeEach(async () => await clearRegistry())
+
   await t.test('should save a document after modifying it', async () => {
     const User = model('SaveUser1', new Schema({}))
     await User.create({ name: 'Alice', age: 25, city: 'New York' })

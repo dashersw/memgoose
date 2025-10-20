@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert'
-import { Schema, model } from '../index'
+import { Schema, model, clearRegistry } from '../index'
 
 interface UserDoc {
   name: string
@@ -10,6 +10,8 @@ interface UserDoc {
 }
 
 test('Hooks', async t => {
+  t.beforeEach(async () => await clearRegistry())
+
   await t.test('should execute pre-save hook', async () => {
     const userSchema = new Schema<UserDoc>({
       name: String,

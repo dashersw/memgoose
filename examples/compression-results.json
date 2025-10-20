@@ -1,0 +1,71 @@
+{
+  "testDate": "2025-10-20",
+  "platform": "Apple M4 Max (16 cores, 128GB RAM)",
+  "nodeVersion": "v24.8.0",
+  "documentCount": 100000,
+  "compressors": [
+    {
+      "compressor": "none",
+      "storageSize": 724763648,
+      "storageSizeMB": 691.33,
+      "compressionRatio": 0.55,
+      "insertTime": 17553,
+      "readTime": 18,
+      "insertRate": 5697,
+      "readRate": 5555556,
+      "spaceSaved": -82.5
+    },
+    {
+      "compressor": "snappy",
+      "storageSize": 360132608,
+      "storageSizeMB": 343.51,
+      "compressionRatio": 1.1,
+      "insertTime": 19050,
+      "readTime": 28,
+      "insertRate": 5249,
+      "readRate": 3571429,
+      "spaceSaved": 9.3
+    },
+    {
+      "compressor": "lz4",
+      "storageSize": 337772544,
+      "storageSizeMB": 322.21,
+      "compressionRatio": 1.18,
+      "insertTime": 19268,
+      "readTime": 17,
+      "insertRate": 5190,
+      "readRate": 5882353,
+      "spaceSaved": 14.9
+    },
+    {
+      "compressor": "zstd",
+      "storageSize": 335912960,
+      "storageSizeMB": 320.44,
+      "compressionRatio": 1.18,
+      "insertTime": 18368,
+      "readTime": 24,
+      "insertRate": 5444,
+      "readRate": 4166667,
+      "spaceSaved": 15.4
+    },
+    {
+      "compressor": "zlib",
+      "storageSize": 336216064,
+      "storageSizeMB": 320.73,
+      "compressionRatio": 1.18,
+      "insertTime": 19225,
+      "readTime": 22,
+      "insertRate": 5202,
+      "readRate": 4545455,
+      "spaceSaved": 15.3
+    }
+  ],
+  "notes": [
+    "WiredTiger overhead can make small datasets appear larger until compression takes effect",
+    "Compression ratios improve with larger datasets and more repetitive data",
+    "Read/write speeds are comparable across all compression algorithms",
+    "ZSTD provides the best compression ratio (1.18x, 15.4% space saved)",
+    "LZ4 provides the fastest read speed (5,882,353 docs/sec)",
+    "Snappy is the recommended default for balance of speed and compression"
+  ]
+}

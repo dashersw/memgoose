@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert'
-import { Schema, model } from '../index'
+import { Schema, model, clearRegistry } from '../index'
 
 interface UserDoc {
   name: string
@@ -13,6 +13,8 @@ interface UserDoc {
 }
 
 test('Validation', async t => {
+  t.beforeEach(async () => await clearRegistry())
+
   await t.test('should validate required fields', async () => {
     const userSchema = new Schema<UserDoc>({
       name: { type: String, required: true },

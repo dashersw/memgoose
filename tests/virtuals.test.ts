@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert'
-import { Schema, VirtualType, model } from '../index'
+import { Schema, VirtualType, model, clearRegistry } from '../index'
 
 interface UserDoc {
   firstName: string
@@ -10,6 +10,8 @@ interface UserDoc {
 }
 
 test('Virtuals', async t => {
+  t.beforeEach(async () => await clearRegistry())
+
   await t.test('should add virtual property to schema', async () => {
     const userSchema = new Schema<UserDoc>({
       firstName: String,
@@ -117,8 +119,8 @@ test('Virtuals', async t => {
     const User = model('User', userSchema)
     await User.create({ firstName: 'Test', lastName: 'User', age: 20, email: 'test@example.com' })
 
-    // Access internal data (not through query)
-    const internalData = (User as any)._data[0]
+    // Access internal storage (not through query)
+    const internalData = (await (User as any)._storage.getAll())[0]
     assert.strictEqual((internalData as any).fullName, undefined) // Virtual not in raw data
     assert.strictEqual(internalData.firstName, 'Test') // Real field exists
   })

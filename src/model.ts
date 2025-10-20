@@ -1,22 +1,18 @@
 import { Schema } from './schema'
-import { registerModel, getModel } from './registry'
 import { ObjectId } from './objectid'
 import { QueryBuilder } from './query-builder'
 import { DocumentQueryBuilder } from './document-query-builder'
 import { FindQueryBuilder } from './find-query-builder'
 import { QueryableKeys } from './type-utils'
+import { StorageStrategy, MemoryStorageStrategy } from './storage'
+import type { Document } from './document'
 
 // Symbols for internal document properties (non-enumerable)
 const ORIGINAL_DOC = Symbol('originalDoc')
 const MODEL_REF = Symbol('modelRef')
 
-// Base Document type that all documents extend (like Mongoose)
-export interface Document {
-  _id: ObjectId // Always present on retrieved documents (auto-generated ObjectId if not provided)
-  toJSON?(options?: any): any
-  toObject?(options?: any): any
-  save(): Promise<any>
-}
+// Re-export Document for backwards compatibility
+export type { Document }
 
 // Deep partial type for nested objects
 export type DeepPartial<T> = T extends object
@@ -77,25 +73,24 @@ export type QueryOptions<T = any> = {
   lean?: boolean
 }
 
-// Index metadata structure
-type IndexMetadata<T> = {
-  fields: Array<keyof T>
-  map: Map<string, T[]>
-  unique: boolean
-}
-
 export class Model<T extends Record<string, any>> {
-  private _data: T[]
-  private _indexes: Map<string, IndexMetadata<T>>
+  private _storage: StorageStrategy<T>
   private _schema?: Schema<T>
   private _discriminatorKey?: string
   private _discriminatorValue?: string
+  private _database?: any // Database reference for getModel
+  private _storageInitPromise: Promise<void> | null = null
 
-  constructor(schema?: Schema<T>, discriminatorValue?: string) {
+  constructor(
+    schema?: Schema<T>,
+    discriminatorValue?: string,
+    storage?: StorageStrategy<T>,
+    database?: any
+  ) {
     this._schema = schema
-    this._data = []
-    this._indexes = new Map()
+    this._storage = storage || new MemoryStorageStrategy<T>()
     this._discriminatorValue = discriminatorValue
+    this._database = database
 
     // Auto-create indexes from schema
     if (schema) {
@@ -120,8 +115,21 @@ export class Model<T extends Record<string, any>> {
     }
   }
 
-  private _applyVirtuals(doc: T): T {
-    if (!this._schema) return doc
+  // Set the storage initialization promise (called by Database)
+  _setStorageInitPromise(promise: Promise<void>): void {
+    this._storageInitPromise = promise
+  }
+
+  // Helper to ensure storage is initialized before any operation
+  private async _ensureStorageReady(): Promise<void> {
+    if (this._storageInitPromise) {
+      await this._storageInitPromise
+      this._storageInitPromise = null // Clear after first wait
+    }
+  }
+
+  private _applyVirtuals(doc: T): T & Document {
+    if (!this._schema) return doc as T & Document
 
     const virtuals = this._schema.getVirtuals()
 
@@ -158,8 +166,16 @@ export class Model<T extends Record<string, any>> {
       const originalDoc = withVirtuals[ORIGINAL_DOC]
       const model = withVirtuals[MODEL_REF]
 
-      // Check if original document still exists in _data
-      if (!model._data.includes(originalDoc)) {
+      await model._ensureStorageReady()
+
+      // Check if original document still exists in storage (by _id or reference)
+      const allDocs = await model._storage.getAll()
+      const docExists = allDocs.some(
+        (d: T) =>
+          d === originalDoc ||
+          (d._id && originalDoc._id && d._id.toString() === originalDoc._id.toString())
+      )
+      if (!docExists) {
         throw new Error('Document has been deleted and cannot be saved')
       }
 
@@ -218,6 +234,9 @@ export class Model<T extends Record<string, any>> {
       // Execute pre-save hooks
       await model._executePreHooks('save', { doc: originalDoc })
 
+      // Persist changes to storage
+      await model._storage.update(originalDoc, originalDoc)
+
       // Rebuild indexes (in case indexed fields changed)
       model._rebuildIndexes()
 
@@ -245,7 +264,7 @@ export class Model<T extends Record<string, any>> {
       return this._serializeDocument(withVirtuals, options || {})
     }
 
-    return withVirtuals
+    return withVirtuals as T & Document
   }
 
   private _serializeDocument(
@@ -359,23 +378,8 @@ export class Model<T extends Record<string, any>> {
   }
 
   private _checkUniqueConstraints(doc: Partial<T>, excludeDoc?: T): void {
-    for (const indexMeta of this._indexes.values()) {
-      if (!indexMeta.unique) continue
-
-      // Build composite key from document values
-      const compositeKey = indexMeta.fields.map(f => String(doc[f])).join(':')
-
-      // Check if this combination already exists in the index
-      const existingDocs = indexMeta.map.get(compositeKey) || []
-
-      // Filter out the document being updated (if any)
-      const duplicates = excludeDoc ? existingDocs.filter(d => d !== excludeDoc) : existingDocs
-
-      if (duplicates.length > 0) {
-        const fieldNames = indexMeta.fields.join(', ')
-        throw new Error(`E11000 duplicate key error: ${fieldNames} must be unique`)
-      }
-    }
+    // Delegate to storage strategy
+    this._storage.checkUniqueConstraints(doc, excludeDoc)
   }
 
   async _applyPopulate(docs: T[], fields: string[]): Promise<T[]> {
@@ -391,7 +395,8 @@ export class Model<T extends Record<string, any>> {
         if (!fieldOptions?.ref) continue
 
         const refModelName = fieldOptions.ref
-        const refModel = getModel(refModelName)
+        // Get model from database registry
+        const refModel = this._database?.getModel(refModelName)
         if (!refModel) continue
 
         const docAsRecord = doc as Record<string, any>
@@ -412,96 +417,78 @@ export class Model<T extends Record<string, any>> {
   }
 
   // --- Indexing ---
-  createIndex(fields: keyof T | Array<keyof T>, options?: { unique?: boolean }): void {
-    const normalizedFields = Array.isArray(fields) ? fields : [fields]
-    const sortedFields = [...normalizedFields].sort()
-    const indexKey = sortedFields.join(',')
-
-    // Build the index map
-    const map = new Map<string, T[]>()
-    for (const doc of this._data) {
-      const compositeKey = sortedFields.map(f => String(doc[f])).join(':')
-      if (!map.has(compositeKey)) map.set(compositeKey, [])
-      map.get(compositeKey)!.push(doc)
-    }
-
-    // Store index with metadata
-    this._indexes.set(indexKey, {
-      fields: sortedFields as Array<keyof T>,
-      map,
-      unique: options?.unique || false
-    })
-  }
-
-  private _updateIndexes(doc: T): void {
-    for (const indexMeta of this._indexes.values()) {
-      const compositeKey = indexMeta.fields.map(f => String(doc[f])).join(':')
-      if (!indexMeta.map.has(compositeKey)) indexMeta.map.set(compositeKey, [])
-      indexMeta.map.get(compositeKey)!.push(doc)
-    }
+  async createIndex(
+    fields: keyof T | Array<keyof T>,
+    options?: { unique?: boolean }
+  ): Promise<void> {
+    // Delegate to storage strategy
+    await this._storage.createIndex(fields, options)
   }
 
   // Helper to efficiently find documents using indexes when possible
-  private _findDocumentsUsingIndexes(query: Query<T>): T[] {
+  private async _findDocumentsUsingIndexes(query: Query<T>): Promise<T[]> {
     const keys = Object.keys(query)
     const queryRecord = query as Record<string, any>
 
     // Return copy of all documents if no query (to avoid mutation during iteration)
-    if (keys.length === 0) return [...this._data]
+    if (keys.length === 0) return await this._storage.getAll()
 
-    // Check if we can use an index (all fields must be simple equality)
+    // Create a matcher function for the storage
+    const matcher = (doc: T) => this._matches(doc, query)
+
+    // Check if we can use an index (all fields must be simple equality, not operators)
     const allSimpleEquality = keys.every(k => typeof queryRecord[k] !== 'object')
 
     if (allSimpleEquality && keys.length > 0) {
-      const sortedKeys = keys.sort()
-      const indexKey = sortedKeys.join(',')
-
-      // Try exact index match first
-      const exactIndex = this._indexes.get(indexKey)
-      if (exactIndex) {
-        const compositeKey = sortedKeys
-          .map(k => String((queryRecord as Record<string, unknown>)[k]))
-          .join(':')
-        return exactIndex.map.get(compositeKey) || []
+      // Provide index hint to storage - it will use index if available
+      const indexHint = {
+        fields: keys as Array<keyof T>,
+        values: queryRecord
       }
-
-      // Try partial index match
-      for (const indexMeta of this._indexes.values()) {
-        const idxFieldStrs = indexMeta.fields.map(String)
-
-        const allIndexFieldsInQuery = idxFieldStrs.every(
-          f => keys.includes(f) && typeof queryRecord[f] !== 'object'
-        )
-
-        if (allIndexFieldsInQuery) {
-          const compositeKey = (indexMeta.fields as Array<string>)
-            .map(field => String((queryRecord as Record<string, unknown>)[field]))
-            .join(':')
-          const candidates = indexMeta.map.get(compositeKey) || []
-          return candidates.filter(doc => this._matches(doc, query))
-        }
-      }
+      return this._storage.findDocuments(matcher, indexHint)
     }
 
-    // Fallback: linear scan
-    return this._data.filter(doc => this._matches(doc, query))
+    // No index hint - storage will use efficient linear scan
+    return this._storage.findDocuments(matcher)
   }
 
   // --- Query Matching ---
+  // Helper for ObjectId comparison (defined once, not per document)
+  private _compareValues(a: any, b: any): boolean {
+    // Fast path for primitives (most common case)
+    if (typeof a !== 'object' && typeof b !== 'object') {
+      return a === b
+    }
+
+    // Handle ObjectId comparison
+    if (a instanceof ObjectId || b instanceof ObjectId) {
+      const aStr = a instanceof ObjectId ? a.toString() : String(a)
+      const bStr = b instanceof ObjectId ? b.toString() : String(b)
+      return aStr === bStr
+    }
+    return a === b
+  }
+
   private _matches(doc: T, query: Query<T>): boolean {
     return Object.entries(query).every(([key, value]) => {
       const field = doc[key as keyof T]
 
-      // Special handling for ObjectId comparison
-      const compareValues = (a: any, b: any): boolean => {
-        if (a instanceof ObjectId || b instanceof ObjectId) {
-          const aStr = a instanceof ObjectId ? a.toString() : String(a)
-          const bStr = b instanceof ObjectId ? b.toString() : String(b)
-          return aStr === bStr
-        }
-        return a === b
+      // Fast path: simple equality for non-object values (most common case)
+      if (typeof value !== 'object' || value === null) {
+        return this._compareValues(field, value)
       }
 
+      // Handle ObjectId equality
+      if (value instanceof ObjectId) {
+        return this._compareValues(field, value)
+      }
+
+      // Skip operator checking for arrays
+      if (Array.isArray(value)) {
+        return this._compareValues(field, value)
+      }
+
+      // Handle query operators
       if (
         typeof value === 'object' &&
         value !== null &&
@@ -511,7 +498,7 @@ export class Model<T extends Record<string, any>> {
         return Object.entries(value).every(([op, v]) => {
           switch (op) {
             case '$eq':
-              return compareValues(field, v)
+              return this._compareValues(field, v)
             case '$ne':
               return field !== v
             case '$in':
@@ -586,69 +573,42 @@ export class Model<T extends Record<string, any>> {
           }
         })
       }
-      return compareValues(field, value)
+      // This path should never be reached due to fast paths above, but keep for safety
+      return this._compareValues(field, value)
     })
   }
 
   // --- Query API ---
   findOne(query: Query<T>, options?: QueryOptions<T>): DocumentQueryBuilder<T> {
-    const operation = async (): Promise<T | null> => {
+    const operation = async (internalOptions?: QueryOptions<T>): Promise<(T & Document) | null> => {
+      await this._ensureStorageReady()
+
+      // Merge options from both sources (builder options take precedence)
+      const mergedOptions = { ...options, ...internalOptions }
+
       await this._executePreHooks('findOne', { query })
 
-      const keys = Object.keys(query)
-      const queryRecord = query as Record<string, any>
+      // Use storage's efficient findDocuments and get first result
+      const results = await this._findDocumentsUsingIndexes(query)
+      const doc = results.length > 0 ? results[0] : null
 
-      // Check if we can use an index (all fields must be simple equality)
-      const allSimpleEquality = keys.every(k => typeof queryRecord[k] !== 'object')
-
-      let doc: T | null = null
-
-      if (allSimpleEquality && keys.length > 0) {
-        const sortedKeys = keys.sort()
-        const indexKey = sortedKeys.join(',')
-
-        // Try exact index match first
-        const exactIndex = this._indexes.get(indexKey)
-        if (exactIndex) {
-          const compositeKey = sortedKeys
-            .map(k => String((queryRecord as Record<string, unknown>)[k]))
-            .join(':')
-          const indexedDocs = exactIndex.map.get(compositeKey) || []
-          doc = indexedDocs.length ? indexedDocs[0] : null
-        } else {
-          // Try partial index match - find an index that's a subset of the query
-          for (const indexMeta of this._indexes.values()) {
-            const idxFieldStrs = indexMeta.fields.map(String)
-
-            // Check if all index fields are in the query (with simple equality)
-            const allIndexFieldsInQuery = idxFieldStrs.every(
-              f =>
-                keys.includes(f) && typeof (queryRecord as Record<string, unknown>)[f] !== 'object'
-            )
-
-            if (allIndexFieldsInQuery) {
-              // Use this partial index
-              const compositeKey = (indexMeta.fields as Array<string>)
-                .map(field => String((queryRecord as Record<string, unknown>)[field]))
-                .join(':')
-              const candidates = indexMeta.map.get(compositeKey) || []
-
-              // Filter candidates with remaining query conditions
-              doc = candidates.find(doc => this._matches(doc, query)) || null
-              break
-            }
-          }
-        }
+      if (!doc) {
+        await this._executePostHooks('findOne', { query, result: null })
+        return null
       }
 
-      // fallback: linear scan if not found via index
-      if (doc === null) {
-        doc = this._data.find(doc => this._matches(doc, query)) || null
+      // Apply virtuals unless lean mode
+      let result: T & Document = mergedOptions?.lean
+        ? (doc as T & Document)
+        : this._applyVirtuals(doc)
+
+      // Apply field selection if specified
+      if (mergedOptions?.select) {
+        result = this._applyFieldSelection(result, mergedOptions.select) as T & Document
       }
 
-      // Return raw doc - builder will apply virtuals if needed
-      await this._executePostHooks('findOne', { query, result: doc })
-      return doc
+      await this._executePostHooks('findOne', { query, result })
+      return result
     }
 
     const builder = new DocumentQueryBuilder<T>(this, operation)
@@ -677,7 +637,11 @@ export class Model<T extends Record<string, any>> {
     return builder
   }
 
-  async _executeFindWithOptions(query: Query<T>, options: QueryOptions<T> = {}): Promise<T[]> {
+  async _executeFindWithOptions(
+    query: Query<T>,
+    options: QueryOptions<T> = {}
+  ): Promise<Array<T & Document>> {
+    await this._ensureStorageReady()
     await this._executePreHooks('find', { query })
 
     // Add discriminator filter if this is a discriminator model
@@ -686,24 +650,17 @@ export class Model<T extends Record<string, any>> {
     }
 
     const keys = Object.keys(query)
-    const queryRecord = query as Record<string, any>
 
     // Get base results
     let results: T[] = []
 
     // Return all documents if no query
     if (keys.length === 0) {
-      results = [...this._data]
+      results = await this._storage.getAll()
     } else {
-      // Check if we can use an index (all fields must be simple equality)
-      const allSimpleEquality = keys.every(k => typeof queryRecord[k] !== 'object')
-
-      if (allSimpleEquality) {
-        // Use the optimized helper method
-        results = this._findDocumentsUsingIndexes(query)
-      } else {
-        results = this._data.filter(doc => this._matches(doc, query))
-      }
+      // Always use _findDocumentsUsingIndexes - it will use indexes if available,
+      // otherwise do efficient linear scan without copying
+      results = await this._findDocumentsUsingIndexes(query)
     }
 
     // Apply options
@@ -730,18 +687,24 @@ export class Model<T extends Record<string, any>> {
     }
 
     // Apply virtuals unless lean mode
-    let finalResults = options.lean ? results : results.map(doc => this._applyVirtuals(doc))
+    let finalResults: Array<T & Document> = options.lean
+      ? results.map(r => r as T & Document)
+      : results.map(doc => this._applyVirtuals(doc))
 
     // Apply field selection if specified
     if (options.select) {
-      finalResults = finalResults.map(doc => this._applyFieldSelection(doc, options.select) as T)
+      finalResults = finalResults.map(
+        doc => this._applyFieldSelection(doc, options.select) as T & Document
+      )
     }
 
     await this._executePostHooks('find', { query, results: finalResults })
     return finalResults
   }
 
-  async create(doc: DeepPartial<T>): Promise<T> {
+  async create(doc: DeepPartial<T>): Promise<T & Document> {
+    await this._ensureStorageReady()
+
     // Apply setters first (before defaults, validation, etc.)
     if (this._schema) {
       this._schema.applySetters(doc)
@@ -761,14 +724,15 @@ export class Model<T extends Record<string, any>> {
     await this._executePreHooks('save', { doc })
 
     const fullDoc = doc as T
-    this._data.push(fullDoc)
-    this._updateIndexes(fullDoc)
+    await this._storage.add(fullDoc)
 
     await this._executePostHooks('save', { doc: fullDoc })
     return this._applyVirtuals(fullDoc)
   }
 
-  async insertMany(docs: DeepPartial<T>[]): Promise<T[]> {
+  async insertMany(docs: DeepPartial<T>[]): Promise<Array<T & Document>> {
+    await this._ensureStorageReady()
+
     // Apply setters, defaults, timestamps, validate and check unique constraints (atomic - fail fast)
     for (const doc of docs) {
       if (this._schema) {
@@ -788,37 +752,36 @@ export class Model<T extends Record<string, any>> {
     }
 
     // Check unique constraints - both against existing data and within the batch
-    for (let i = 0; i < docs.length; i++) {
-      const doc = docs[i]
-      // Check against existing documents
-      this._checkUniqueConstraints(doc as T)
+    const fullDocs = docs as T[]
 
-      // Check against other documents in this batch
-      for (const indexMeta of this._indexes.values()) {
-        if (!indexMeta.unique) continue
-
-        const docAsRecord = doc as Record<string, any>
-        const compositeKey = indexMeta.fields.map(f => String(docAsRecord[f as string])).join(':')
-
-        // Check if any previous doc in batch has the same key
-        for (let j = 0; j < i; j++) {
-          const prevDoc = docs[j]
-          const prevDocAsRecord = prevDoc as Record<string, any>
-          const prevKey = indexMeta.fields.map(f => String(prevDocAsRecord[f as string])).join(':')
-          if (compositeKey === prevKey) {
-            const fieldNames = indexMeta.fields.join(', ')
-            throw new Error(`E11000 duplicate key error: ${fieldNames} must be unique`)
-          }
-        }
-      }
+    // First check all docs against existing storage
+    for (const doc of fullDocs) {
+      this._checkUniqueConstraints(doc)
     }
 
+    // Then check for duplicates within the batch itself
+    // We'll temporarily add each doc to storage's indexes one by one, checking constraints each time
+    for (let i = 0; i < fullDocs.length; i++) {
+      const doc = fullDocs[i]
+
+      // Check against previously processed docs in batch (which are now in indexes)
+      if (i > 0) {
+        this._checkUniqueConstraints(doc)
+      }
+
+      // Temporarily add this doc to indexes so next doc can be checked against it
+      this._storage.updateIndexForDocument(null, doc)
+    }
+
+    // Rollback the temporary index updates (rebuild from actual storage)
+    await this._rebuildIndexes()
+
     // If all validations pass, proceed with insertion
-    const fullDocs = docs as T[]
     for (const doc of fullDocs) {
       await this._executePreHooks('save', { doc })
-      this._data.push(doc)
-      this._updateIndexes(doc)
+    }
+    await this._storage.addMany(fullDocs)
+    for (const doc of fullDocs) {
       await this._executePostHooks('save', { doc })
     }
     return fullDocs.map(doc => this._applyVirtuals(doc))
@@ -833,10 +796,11 @@ export class Model<T extends Record<string, any>> {
   }
 
   private async _executeDeleteOne(query: Query<T>): Promise<{ deletedCount: number }> {
+    await this._ensureStorageReady()
     await this._executePreHooks('delete', { query })
 
     // Use indexes for efficient lookup
-    const candidates = this._findDocumentsUsingIndexes(query)
+    const candidates = await this._findDocumentsUsingIndexes(query)
     const docToDelete = candidates[0]
 
     if (!docToDelete) {
@@ -844,17 +808,11 @@ export class Model<T extends Record<string, any>> {
       return { deletedCount: 0 }
     }
 
-    const index = this._data.indexOf(docToDelete)
-    if (index > -1) {
-      this._data.splice(index, 1)
-      // Efficiently update indexes for deleted document
-      this._updateIndexForDocument(docToDelete, null)
-      await this._executePostHooks('delete', { query, deletedCount: 1, doc: docToDelete })
-      return { deletedCount: 1 }
-    }
-
-    await this._executePostHooks('delete', { query, deletedCount: 0 })
-    return { deletedCount: 0 }
+    await this._storage.remove(docToDelete)
+    // Efficiently update indexes for deleted document
+    this._updateIndexForDocument(docToDelete, null)
+    await this._executePostHooks('delete', { query, deletedCount: 1, doc: docToDelete })
+    return { deletedCount: 1 }
   }
 
   deleteMany(query: Query<T>): QueryBuilder<{ deletedCount: number }> {
@@ -865,23 +823,19 @@ export class Model<T extends Record<string, any>> {
   }
 
   private async _executeDeleteMany(query: Query<T>): Promise<{ deletedCount: number }> {
+    await this._ensureStorageReady()
     await this._executePreHooks('delete', { query })
 
     // Use indexes for efficient lookup
-    const docsToDelete = this._findDocumentsUsingIndexes(query)
+    const docsToDelete = await this._findDocumentsUsingIndexes(query)
     if (docsToDelete.length === 0) {
       await this._executePostHooks('delete', { query, deletedCount: 0 })
       return { deletedCount: 0 }
     }
 
-    for (const doc of docsToDelete) {
-      const index = this._data.indexOf(doc)
-      if (index > -1) {
-        this._data.splice(index, 1)
-      }
-    }
+    await this._storage.removeMany(docsToDelete)
 
-    this._rebuildIndexes()
+    await this._rebuildIndexes()
     await this._executePostHooks('delete', {
       query,
       deletedCount: docsToDelete.length,
@@ -890,49 +844,14 @@ export class Model<T extends Record<string, any>> {
     return { deletedCount: docsToDelete.length }
   }
 
-  private _rebuildIndexes(): void {
-    // Rebuild all indexes from scratch
-    for (const indexMeta of this._indexes.values()) {
-      indexMeta.map.clear()
-
-      for (const doc of this._data) {
-        const compositeKey = indexMeta.fields.map(f => String(doc[f])).join(':')
-        if (!indexMeta.map.has(compositeKey)) indexMeta.map.set(compositeKey, [])
-        indexMeta.map.get(compositeKey)!.push(doc)
-      }
-    }
+  private async _rebuildIndexes(): Promise<void> {
+    // Delegate to storage strategy
+    await this._storage.rebuildIndexes()
   }
 
   private _updateIndexForDocument(oldDoc: T | null, newDoc: T | null): void {
-    // Efficiently update indexes for a single document change
-    // oldDoc: document before change (or null if adding)
-    // newDoc: document after change (or null if deleting)
-
-    for (const indexMeta of this._indexes.values()) {
-      // Remove old index entry if document existed before
-      if (oldDoc) {
-        const oldKey = indexMeta.fields.map(f => String(oldDoc[f])).join(':')
-        const oldBucket = indexMeta.map.get(oldKey)
-        if (oldBucket) {
-          const idx = oldBucket.indexOf(oldDoc)
-          if (idx > -1) {
-            oldBucket.splice(idx, 1)
-            if (oldBucket.length === 0) {
-              indexMeta.map.delete(oldKey)
-            }
-          }
-        }
-      }
-
-      // Add new index entry if document exists after
-      if (newDoc) {
-        const newKey = indexMeta.fields.map(f => String(newDoc[f])).join(':')
-        if (!indexMeta.map.has(newKey)) {
-          indexMeta.map.set(newKey, [])
-        }
-        indexMeta.map.get(newKey)!.push(newDoc)
-      }
-    }
+    // Delegate to storage strategy
+    this._storage.updateIndexForDocument(oldDoc, newDoc)
   }
 
   // --- Update Operations ---
@@ -1077,10 +996,11 @@ export class Model<T extends Record<string, any>> {
     update: Update<T>,
     options?: { upsert?: boolean }
   ): Promise<{ modifiedCount: number; upsertedCount?: number }> {
+    await this._ensureStorageReady()
     await this._executePreHooks('update', { query, update })
 
     // Use indexes for efficient lookup
-    const candidates = this._findDocumentsUsingIndexes(query)
+    const candidates = await this._findDocumentsUsingIndexes(query)
     let docToUpdate = candidates[0]
 
     if (!docToUpdate) {
@@ -1133,6 +1053,9 @@ export class Model<T extends Record<string, any>> {
       this._applyUpdate(docToUpdate, update)
       this._applyTimestamps(docToUpdate, 'update')
 
+      // Persist changes to storage
+      await this._storage.update(docToUpdate, docToUpdate)
+
       // Efficiently update indexes for this single document
       this._updateIndexForDocument(oldState, docToUpdate)
 
@@ -1155,10 +1078,11 @@ export class Model<T extends Record<string, any>> {
     query: Query<T>,
     update: Update<T>
   ): Promise<{ modifiedCount: number }> {
+    await this._ensureStorageReady()
     await this._executePreHooks('update', { query, update })
 
     // Use indexes for efficient lookup
-    const docsToUpdate = this._findDocumentsUsingIndexes(query)
+    const docsToUpdate = await this._findDocumentsUsingIndexes(query)
     if (docsToUpdate.length === 0) {
       await this._executePostHooks('update', { query, update, modifiedCount: 0 })
       return { modifiedCount: 0 }
@@ -1180,12 +1104,14 @@ export class Model<T extends Record<string, any>> {
     for (const doc of docsToUpdate) {
       if (this._applyUpdate(doc, update)) {
         this._applyTimestamps(doc, 'update')
+        // Persist changes to storage
+        await this._storage.update(doc, doc)
         modifiedCount++
       }
     }
 
     if (modifiedCount > 0) {
-      this._rebuildIndexes()
+      await this._rebuildIndexes()
     }
 
     await this._executePostHooks('update', { query, update, modifiedCount, docs: docsToUpdate })
@@ -1205,8 +1131,12 @@ export class Model<T extends Record<string, any>> {
     update: Update<T>,
     options: { returnDocument?: 'before' | 'after'; new?: boolean; upsert?: boolean } = {}
   ): DocumentQueryBuilder<T> {
-    const operation = async () => {
-      return this._executeFindOneAndUpdate(query, update, options)
+    const operation = async (queryOptions?: QueryOptions<T>): Promise<(T & Document) | null> => {
+      return this._executeFindOneAndUpdate(query, update, {
+        ...options,
+        lean: queryOptions?.lean,
+        select: queryOptions?.select
+      })
     }
     return new DocumentQueryBuilder<T>(this, operation)
   }
@@ -1214,16 +1144,25 @@ export class Model<T extends Record<string, any>> {
   private async _executeFindOneAndUpdate(
     query: Query<T>,
     update: Update<T>,
-    options: { returnDocument?: 'before' | 'after'; new?: boolean; upsert?: boolean } = {}
-  ): Promise<T | null> {
+    options: {
+      returnDocument?: 'before' | 'after'
+      new?: boolean
+      upsert?: boolean
+      lean?: boolean
+      select?: Partial<Record<keyof T, 0 | 1>>
+    } = {}
+  ): Promise<(T & Document) | null> {
+    await this._ensureStorageReady()
+
     // Support 'new' as alias for returnDocument
     // new: true -> returnDocument: 'after'
     // new: false -> returnDocument: 'before'
     // Default (no new, no returnDocument) -> 'after'
     const returnBefore = options.new === false || options.returnDocument === 'before'
+    const isLean = options.lean || false
 
     // Use indexes for efficient lookup
-    const candidates = this._findDocumentsUsingIndexes(query)
+    const candidates = await this._findDocumentsUsingIndexes(query)
     let docToUpdate = candidates[0]
 
     if (!docToUpdate) {
@@ -1265,7 +1204,13 @@ export class Model<T extends Record<string, any>> {
       this._applyTimestamps(docToUpdate, 'update')
       // Efficiently update indexes for this single document
       this._updateIndexForDocument(oldState, docToUpdate)
-      return original // Return raw doc - builder will apply virtuals
+      // Apply virtuals unless lean mode
+      let result: T & Document = isLean ? (original as T & Document) : this._applyVirtuals(original)
+      // Apply field selection if specified
+      if (options.select) {
+        result = this._applyFieldSelection(result, options.select) as T & Document
+      }
+      return result
     }
 
     // Return after (default or when new: true)
@@ -1280,19 +1225,35 @@ export class Model<T extends Record<string, any>> {
     this._applyTimestamps(docToUpdate, 'update')
     // Efficiently update indexes for this single document
     this._updateIndexForDocument(oldState, docToUpdate)
-    return docToUpdate // Return raw doc - builder will apply virtuals
+    // Apply virtuals unless lean mode
+    let result: T & Document = isLean
+      ? (docToUpdate as T & Document)
+      : this._applyVirtuals(docToUpdate)
+    // Apply field selection if specified
+    if (options.select) {
+      result = this._applyFieldSelection(result, options.select) as T & Document
+    }
+    return result
   }
 
   findOneAndDelete(query: Query<T>): DocumentQueryBuilder<T> {
-    const operation = async () => {
-      return this._executeFindOneAndDelete(query)
+    const operation = async (queryOptions?: QueryOptions<T>): Promise<(T & Document) | null> => {
+      return this._executeFindOneAndDelete(query, {
+        lean: queryOptions?.lean,
+        select: queryOptions?.select
+      })
     }
     return new DocumentQueryBuilder<T>(this, operation)
   }
 
-  private async _executeFindOneAndDelete(query: Query<T>): Promise<T | null> {
+  private async _executeFindOneAndDelete(
+    query: Query<T>,
+    options?: { lean?: boolean; select?: Partial<Record<keyof T, 0 | 1>> }
+  ): Promise<(T & Document) | null> {
+    await this._ensureStorageReady()
+
     // Use indexes for efficient lookup
-    const candidates = this._findDocumentsUsingIndexes(query)
+    const candidates = await this._findDocumentsUsingIndexes(query)
     const docToDelete = candidates[0]
 
     if (!docToDelete) {
@@ -1300,19 +1261,26 @@ export class Model<T extends Record<string, any>> {
     }
 
     const original = { ...docToDelete }
-    const index = this._data.indexOf(docToDelete)
-    if (index > -1) {
-      this._data.splice(index, 1)
-      // Efficiently update indexes for deleted document
-      this._updateIndexForDocument(docToDelete, null)
-    }
+    await this._storage.remove(docToDelete)
+    // Efficiently update indexes for deleted document
+    this._updateIndexForDocument(docToDelete, null)
 
-    return original // Return raw doc - builder will apply virtuals
+    // Apply virtuals unless lean mode
+    let result: T & Document = options?.lean
+      ? (original as T & Document)
+      : this._applyVirtuals(original)
+    // Apply field selection if specified
+    if (options?.select) {
+      result = this._applyFieldSelection(result, options.select) as T & Document
+    }
+    return result
   }
 
   // --- Utility Operations ---
   async distinct<K extends keyof T>(field: K, query?: Query<T>): Promise<Array<T[K]>> {
-    const docs = query ? await this.find(query) : this._data
+    await this._ensureStorageReady()
+
+    const docs = query ? await this.find(query) : await this._storage.getAll()
     const uniqueValues = new Set<T[K]>()
 
     for (const doc of docs) {
@@ -1377,21 +1345,19 @@ export class Model<T extends Record<string, any>> {
     Object.assign(mergedSchema.methods, this._schema.methods, schema.methods)
     Object.assign(mergedSchema.statics, this._schema.statics, schema.statics)
 
-    // Create discriminator model that shares data with base model
-    const discriminatorModel = new Model<T & D>(mergedSchema, name)
-    discriminatorModel._data = this._data as (T & D)[]
-    discriminatorModel._indexes = this._indexes as Map<string, IndexMetadata<T & D>>
+    // Create discriminator model that shares storage with base model
+    const discriminatorModel = new Model<T & D>(
+      mergedSchema,
+      name,
+      this._storage as StorageStrategy<T & D>,
+      this._database
+    )
 
-    // Register the discriminator model
-    registerModel(name, discriminatorModel)
+    // Register the discriminator model in database
+    if (this._database) {
+      ;(this._database as any)._modelRegistry.set(name, discriminatorModel)
+    }
 
     return discriminatorModel
   }
-}
-
-// Factory function for creating models (mongoose-style)
-export function model<T extends Record<string, any>>(name: string, schema: Schema<T>): Model<T> {
-  const modelInstance = new Model<T>(schema)
-  registerModel(name, modelInstance)
-  return modelInstance
 }

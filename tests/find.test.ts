@@ -4,6 +4,8 @@ import { model, Schema, DocumentQueryBuilder, clearRegistry } from '../index'
 import { testUsers } from './fixtures'
 
 test('Model - find() method', async t => {
+  t.beforeEach(async () => await clearRegistry())
+
   await t.test('should find all documents with empty query', async () => {
     const User = model('User', new Schema({}))
     await User.insertMany(testUsers)

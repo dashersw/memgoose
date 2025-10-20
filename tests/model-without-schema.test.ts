@@ -1,9 +1,11 @@
 import { test } from 'node:test'
 import assert from 'node:assert'
-import { Model, Schema } from '../index'
+import { Model, Schema, clearRegistry } from '../index'
 
 // Test edge cases where Model is used without a schema (defensive code paths)
 test('Model without Schema', async t => {
+  t.beforeEach(async () => await clearRegistry())
+
   await t.test('should work without schema - basic operations', async () => {
     const User = new Model()
 

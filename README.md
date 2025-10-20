@@ -37,7 +37,8 @@ const count = await User.countDocuments({ age: { $gte: 18 } })
 - 🔍 **Rich Queries**: MongoDB-like query operators ($eq, $ne, $in, $nin, $gt, $gte, $lt, $lte, $regex)
 - 📊 **Smart Indexing**: Single-field, compound, and partial index matching
 - 🏗️ **Mongoose-Compatible**: Schema, Model, and model() factory pattern
-- 📦 **Zero Runtime Dependencies**: No external dependencies required
+- 💾 **Pluggable Storage**: Memory, WiredTiger, SQLite, or file-based (NDJSON + WAL) persistence
+- 📦 **Zero Dependencies**: No runtime dependencies (SQLite storage requires optional peer dependency)
 - 🎣 **Hooks**: Pre/post hooks for save, update, delete, and find operations
 - 🔮 **Virtuals**: Computed properties with getter functions
 - 🧪 **Well Tested**: Comprehensive test suite with excellent code coverage
@@ -51,12 +52,36 @@ const count = await User.countDocuments({ age: { $gte: 18 } })
 - 💾 **Caching**: In-memory cache with familiar mongoose-like API
 - 📊 **Development**: Fast local development without database setup
 - 🎯 **Learning**: Learn MongoDB query patterns without installing MongoDB
+- 🗄️ **Persistence**: Use SQLite or file storage for lightweight persistent applications
 
 ## Installation
 
 ```bash
 npm install memgoose
 ```
+
+**For SQLite storage (optional):**
+
+```bash
+npm install better-sqlite3
+```
+
+**For WiredTiger storage (optional):**
+
+WiredTiger bindings are built automatically during `npm install`. If the build fails, other storage options remain available.
+
+## Documentation
+
+📚 **Complete documentation available in the [`/docs`](./docs) folder:**
+
+- **[Getting Started](./docs/GETTING_STARTED.md)** - Quick start guide with examples
+- **[API Reference](./docs/API.md)** - Complete API documentation
+- **[Schemas](./docs/SCHEMAS.md)** - Field types, validation, timestamps, subdocuments
+- **[Queries](./docs/QUERIES.md)** - Query and update operators, query chaining
+- **[Storage](./docs/STORAGE.md)** - All storage backends (Memory, File, SQLite, WiredTiger)
+- **[Advanced Features](./docs/ADVANCED.md)** - Hooks, virtuals, populate, discriminators
+- **[Performance](./docs/PERFORMANCE.md)** - Optimization guide and benchmarks
+- **[WiredTiger](./docs/WIREDTIGER.md)** - WiredTiger storage setup and configuration
 
 ## Usage
 
@@ -153,6 +178,165 @@ The `save()` method:
 - Returns the updated document with virtuals
 
 **Note**: Lean queries (`{ lean: true }`) return plain objects without the `save()` method.
+
+## Storage Strategies
+
+memgoose supports pluggable storage strategies. Choose the one that fits your use case:
+
+### Memory Storage (Default)
+
+Fastest performance, data lost when process exits. Perfect for testing and caching.
+
+```typescript
+import { model, Schema } from 'memgoose'
+
+// No configuration needed - memory storage is default
+const User = model('User', userSchema)
+```
+
+### WiredTiger Storage
+
+High-performance embedded database engine (powers MongoDB). Best for production use with high write throughput.
+
+**Build Requirements:**
+
+WiredTiger requires native compilation. Ensure you have build tools installed:
+
+- **macOS**: Xcode Command Line Tools (`xcode-select --install`)
+- **Linux**: `build-essential`, `autoconf`, `libtool`
+- **Windows**: Visual Studio Build Tools
+
+**Usage:**
+
+```typescript
+import { connect, model, Schema } from 'memgoose'
+
+// Configure WiredTiger storage
+connect({
+  storage: 'wiredtiger',
+  wiredtiger: {
+    dataPath: './data',
+    cacheSize: '500M' // Optional: default is 500M
+  }
+})
+
+const User = model('User', userSchema)
+// Data persists to ./data/User/ directory
+```
+
+**Features:**
+
+- ACID transactions with durability guarantees
+- High write throughput and concurrent access
+- MVCC (Multi-Version Concurrency Control)
+- Built-in compression and efficient storage
+- WAL (Write-Ahead Logging) for crash recovery
+- Battle-tested (powers MongoDB)
+
+**Example:**
+
+```bash
+npm run example:wiredtiger
+```
+
+**Documentation:** See [docs/WIREDTIGER.md](docs/WIREDTIGER.md) for detailed setup and usage.
+
+### SQLite Storage
+
+Persistent storage using SQLite with WAL mode for better concurrency. Best for production use cases requiring persistence.
+
+**Installation:**
+
+SQLite storage requires the `better-sqlite3` package:
+
+```bash
+npm install better-sqlite3
+```
+
+**Usage:**
+
+```typescript
+import { connect, model, Schema } from 'memgoose'
+
+// Configure SQLite storage
+connect({
+  storage: 'sqlite',
+  sqlite: {
+    dataPath: './data' // Directory for SQLite database files
+  }
+})
+
+const User = model('User', userSchema)
+// Data persists to ./data/User.db
+```
+
+**Features:**
+
+- Persistent storage with ACID guarantees
+- WAL mode for better concurrency
+- Native SQLite indexes for query performance
+- Unique constraints enforced at database level
+- Transactions for batch operations
+
+**Example:**
+
+```bash
+npm run example:sqlite
+```
+
+### File Storage (NDJSON + WAL)
+
+Lightweight file-based persistence with write-ahead logging. Good for simple persistence without SQLite dependency.
+
+```typescript
+import { connect, model, Schema } from 'memgoose'
+
+// Configure file storage
+connect({
+  storage: 'file',
+  file: {
+    dataPath: './data',
+    persistMode: 'debounced', // or 'immediate'
+    debounceMs: 100
+  }
+})
+
+const User = model('User', userSchema)
+// Data persists to ./data/User.data.ndjson
+```
+
+**Features:**
+
+- Human-readable NDJSON format
+- Write-ahead log for efficient updates
+- Automatic compaction
+- Debounced or immediate persistence
+- No external dependencies
+
+**Example:**
+
+```bash
+npm run example:file
+```
+
+### Mixed Storage
+
+Different models can use different storage strategies:
+
+```typescript
+import { createDatabase, Schema } from 'memgoose'
+
+// In-memory cache
+const cacheDb = createDatabase({ storage: 'memory' })
+const Cache = cacheDb.model('Cache', cacheSchema)
+
+// Persistent user data
+const userDb = createDatabase({
+  storage: 'sqlite',
+  sqlite: { dataPath: './data' }
+})
+const User = userDb.model('User', userSchema)
+```
 
 ## Update Operators
 
@@ -611,13 +795,22 @@ memgoose/
 ├── src/               # Source code
 │   ├── model.ts       # Model with full query engine
 │   ├── schema.ts      # Schema with virtuals & hooks
+│   ├── connection.ts  # Connection management
+│   ├── database.ts    # Database abstraction
 │   ├── registry.ts    # Model registry
-│   └── objectid.ts    # ObjectId implementation
+│   ├── objectid.ts    # ObjectId implementation
+│   └── storage/       # Pluggable storage strategies
+│       ├── storage-strategy.ts  # Storage interface
+│       ├── memory-strategy.ts   # In-memory storage
+│       ├── sqlite-strategy.ts   # SQLite storage
+│       └── file-strategy.ts     # File (NDJSON + WAL) storage
 ├── examples/          # Usage examples
 │   ├── schema-indexes-queries.ts  # Basic usage
 │   ├── performance.ts             # Performance benchmark (100k docs)
 │   ├── virtuals-and-hooks.ts      # Virtuals & hooks demo
 │   ├── complete-features-demo.ts  # Complete features showcase
+│   ├── sqlite-storage-demo.ts     # SQLite storage demo
+│   ├── file-storage-demo.ts       # File storage demo
 │   └── README.md
 ├── tests/             # Comprehensive test suite
 │   ├── *.test.ts      # Test files
@@ -626,6 +819,13 @@ memgoose/
 ```
 
 ### Implemented Features
+
+**Storage Strategies:**
+
+- Memory storage (in-memory, default)
+- SQLite storage (persistent with ACID guarantees)
+- File storage (NDJSON + WAL)
+- Pluggable storage interface
 
 **Query Operations:**
 

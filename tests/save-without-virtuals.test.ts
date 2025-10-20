@@ -1,9 +1,11 @@
 import { test } from 'node:test'
 import assert from 'node:assert'
-import { Model, Schema } from '../index'
+import { Model, Schema, clearRegistry } from '../index'
 
 // Test edge case: save() with schema but no virtuals (covers line 271 in model.ts)
 test('Save with Schema but No Virtuals', async t => {
+  t.beforeEach(async () => await clearRegistry())
+
   await t.test('should handle save() with schema but no virtuals (line 271)', async () => {
     // Create schema with NO virtuals - this tests the defensive || [] in line 271
     const userSchema = new Schema({

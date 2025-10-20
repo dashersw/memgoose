@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert'
-import { Schema, model } from '../index'
+import { Schema, model, clearRegistry } from '../index'
 
 interface AddressDoc {
   street: string
@@ -21,6 +21,8 @@ interface UserWithAddressesDoc {
 }
 
 test('Subdocuments', async t => {
+  t.beforeEach(async () => await clearRegistry())
+
   await t.test('should support nested schema (single subdocument)', async () => {
     const addressSchema = new Schema<AddressDoc>({
       street: String,

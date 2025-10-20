@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert'
-import { Schema, model } from '../index'
+import { Schema, model, clearRegistry } from '../index'
 
 interface UserDoc {
   name: string
@@ -18,6 +18,8 @@ interface CustomTimestampDoc {
 }
 
 test('Timestamps', async t => {
+  t.beforeEach(async () => await clearRegistry())
+
   await t.test('should auto-add createdAt and updatedAt with timestamps: true', async () => {
     const userSchema = new Schema<UserDoc>(
       {

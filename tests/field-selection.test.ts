@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert'
-import { model, Schema } from '../index'
+import { model, Schema, clearRegistry } from '../index'
 
 interface TestUser {
   name: string
@@ -11,6 +11,8 @@ interface TestUser {
 }
 
 test('Field Selection', async t => {
+  t.beforeEach(async () => await clearRegistry())
+
   await t.test('should select specific fields using object notation', async () => {
     const User = model('User', new Schema<TestUser>({}))
     await User.insertMany([

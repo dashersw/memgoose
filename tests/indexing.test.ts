@@ -1,9 +1,11 @@
 import { test } from 'node:test'
 import assert from 'node:assert'
-import { model, Schema } from '../index'
+import { model, Schema, clearRegistry } from '../index'
 import { testUsers } from './fixtures'
 
 test('Model - Indexing', async t => {
+  t.beforeEach(async () => await clearRegistry())
+
   await t.test('should create an index on a field', async () => {
     const User = model('User', new Schema({}))
     await User.insertMany([...testUsers])
@@ -44,12 +46,12 @@ test('Model - Indexing', async t => {
     await User.insertMany([...testUsers])
     await User.createIndex('name') // Only index 'name', not 'age'
 
-    // Manually spy on Array.prototype.find
-    let findCallCount = 0
-    const originalFind = Array.prototype.find
-    Array.prototype.find = function (...args) {
-      findCallCount++
-      return originalFind.apply(this, args)
+    // Manually spy on Array.prototype.filter (storage strategies use filter for linear scan)
+    let filterCallCount = 0
+    const originalFilter = Array.prototype.filter
+    Array.prototype.filter = function (...args) {
+      filterCallCount++
+      return originalFilter.apply(this, args)
     }
 
     const result = await User.findOne({ age: 32 })
@@ -58,11 +60,11 @@ test('Model - Indexing', async t => {
     assert.strictEqual(result?.name, 'Bob')
     assert.strictEqual(result.age, 32)
 
-    // Verify Array.find WAS called (meaning linear scan was used)
-    assert.ok(findCallCount > 0, 'Array.find should be called for non-indexed queries')
+    // Verify Array.filter WAS called (meaning linear scan was used)
+    assert.ok(filterCallCount > 0, 'Array.filter should be called for non-indexed queries')
 
     // Restore original
-    Array.prototype.find = originalFind
+    Array.prototype.filter = originalFilter
   })
 
   await t.test(
@@ -72,12 +74,12 @@ test('Model - Indexing', async t => {
       await User.insertMany([...testUsers])
       await User.createIndex('age') // Index age field
 
-      // Manually spy on Array.prototype.find
-      let findCallCount = 0
-      const originalFind = Array.prototype.find
-      Array.prototype.find = function (...args) {
-        findCallCount++
-        return originalFind.apply(this, args)
+      // Manually spy on Array.prototype.filter (storage strategies use filter for linear scan)
+      let filterCallCount = 0
+      const originalFilter = Array.prototype.filter
+      Array.prototype.filter = function (...args) {
+        filterCallCount++
+        return originalFilter.apply(this, args)
       }
 
       // Query with operator - should not use index
@@ -87,11 +89,11 @@ test('Model - Indexing', async t => {
       assert.ok(result?.age)
       assert.ok(result?.age > 30)
 
-      // Verify Array.find WAS called (operator queries don't use index)
-      assert.ok(findCallCount > 0, 'Array.find should be called for operator queries')
+      // Verify Array.filter WAS called (operator queries don't use index)
+      assert.ok(filterCallCount > 0, 'Array.filter should be called for operator queries')
 
       // Restore original
-      Array.prototype.find = originalFind
+      Array.prototype.filter = originalFilter
     }
   )
 
@@ -101,12 +103,12 @@ test('Model - Indexing', async t => {
     await User.createIndex('name')
     await User.createIndex('age')
 
-    // Manually spy on Array.prototype.find
-    let findCallCount = 0
-    const originalFind = Array.prototype.find
-    Array.prototype.find = function (...args) {
-      findCallCount++
-      return originalFind.apply(this, args)
+    // Manually spy on Array.prototype.filter (storage strategies use filter for linear scan)
+    let filterCallCount = 0
+    const originalFilter = Array.prototype.filter
+    Array.prototype.filter = function (...args) {
+      filterCallCount++
+      return originalFilter.apply(this, args)
     }
 
     // Multi-field query - should not use index
@@ -115,11 +117,11 @@ test('Model - Indexing', async t => {
     // Verify the result is correct
     assert.strictEqual(result?.name, 'Bob')
 
-    // Verify Array.find WAS called (multi-field queries don't use index)
-    assert.ok(findCallCount > 0, 'Array.find should be called for multi-field queries')
+    // Verify Array.filter WAS called (multi-field queries don't use index)
+    assert.ok(filterCallCount > 0, 'Array.filter should be called for multi-field queries')
 
     // Restore original
-    Array.prototype.find = originalFind
+    Array.prototype.filter = originalFilter
   })
 
   await t.test('should update indexes when inserting new documents', async () => {

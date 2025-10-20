@@ -1,8 +1,10 @@
 import { test } from 'node:test'
 import assert from 'node:assert'
-import { ObjectId, Schema, model } from '../index'
+import { ObjectId, Schema, model, clearRegistry } from '../index'
 
 test('ObjectId', async t => {
+  t.beforeEach(async () => await clearRegistry())
+
   await t.test('should generate valid ObjectId', () => {
     const id = new ObjectId()
     const idStr = id.toString()

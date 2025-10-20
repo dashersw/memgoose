@@ -6,9 +6,15 @@ export type Query<T extends Record<string, any> = Record<string, any>> = {
   [K in QueryableKeys<T>]?: any
 }
 
+// Import Document type for proper typing
+import type { Document } from './document'
+
 // FindQueryBuilder - for find() operations that return arrays
 // Extends DocumentQueryBuilder and adds sort(), limit(), skip()
-export class FindQueryBuilder<T extends Record<string, any>> extends DocumentQueryBuilder<T, T[]> {
+export class FindQueryBuilder<T extends Record<string, any>> extends DocumentQueryBuilder<
+  T,
+  Array<T & Document>
+> {
   protected _sort?: Partial<Record<keyof T, 1 | -1>>
   protected _limit?: number
   protected _skip?: number
@@ -16,7 +22,7 @@ export class FindQueryBuilder<T extends Record<string, any>> extends DocumentQue
 
   constructor(model: any, query: Query<T> = {}) {
     // Create a dummy operation for the parent
-    super(model, async () => [] as T[])
+    super(model, async () => [] as Array<T & Document>)
     this._model = model
     this._query = query
     this._populate = []
@@ -68,7 +74,7 @@ export class FindQueryBuilder<T extends Record<string, any>> extends DocumentQue
   }
 
   // Override exec to execute find with all accumulated options
-  async exec(): Promise<T[]> {
+  async exec(): Promise<Array<T & Document>> {
     const options: QueryOptions<T> = {
       sort: this._sort,
       limit: this._limit,

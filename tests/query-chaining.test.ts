@@ -1,9 +1,11 @@
 import { test } from 'node:test'
 import assert from 'node:assert'
-import { model, Schema } from '../index'
+import { model, Schema, clearRegistry } from '../index'
 import { testUsers } from './fixtures'
 
 test('Query Chaining', async t => {
+  t.beforeEach(async () => await clearRegistry())
+
   await t.test('should sort results in ascending order', async () => {
     const User = model('User', new Schema({}))
     await User.insertMany(testUsers.map(u => ({ ...u })))

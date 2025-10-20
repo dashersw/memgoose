@@ -7,11 +7,14 @@ import {
   FindQueryBuilder,
   Schema,
   ValidationError,
-  VirtualType
+  VirtualType,
+  clearRegistry
 } from '../index'
 
 // Test that all exports from index.ts are accessible and functional
 test('Module Exports', async t => {
+  t.beforeEach(async () => await clearRegistry())
+
   await t.test('should export Model class', async () => {
     const User = new Model()
     await User.create({ name: 'Test' })

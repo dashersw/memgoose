@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert'
-import { model, Schema } from '../index'
+import { model, Schema, clearRegistry } from '../index'
 
 interface TestDoc {
   name: string
@@ -11,6 +11,8 @@ interface TestDoc {
 }
 
 test('Update Operations', async t => {
+  t.beforeEach(async () => await clearRegistry())
+
   await t.test('should update with $set operator', async () => {
     const User = model('User', new Schema<TestDoc>({}))
     await User.create({ name: 'Alice', age: 25 })

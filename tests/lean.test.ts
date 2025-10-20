@@ -9,6 +9,8 @@ interface UserDoc {
 }
 
 test('Lean Queries', async t => {
+  t.beforeEach(async () => await clearRegistry())
+
   await t.test('should return plain objects without virtuals when lean is true', async () => {
     const userSchema = new Schema<UserDoc>({
       name: String,

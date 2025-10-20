@@ -8,7 +8,7 @@
     "build": "tsc",
     "build:tests": "tsc -p tsconfig.tests.json",
     "build:all": "npm run build && npm run build:tests",
-    "clean": "rm -rf dist",
+    "clean": "rm -rf dist build",
     "check-types": "tsc --noEmit",
     "lint": "eslint . --ext .ts",
     "lint:fix": "eslint . --ext .ts --fix",
@@ -21,6 +21,10 @@
     "example:virtuals": "tsx examples/virtuals-and-hooks.ts",
     "example:showcase": "tsx examples/complete-features-demo.ts",
     "example:save": "tsx examples/document-save.ts",
+    "example:sqlite": "tsx examples/sqlite-storage-demo.ts",
+    "example:wiredtiger": "tsx examples/wiredtiger-storage-demo.ts",
+    "example:compression": "tsx examples/compression-comparison.ts",
+    "benchmark": "tsx examples/performance.ts",
     "test": "node --import tsx --test tests/*.test.ts",
     "test:file": "node --import tsx --test",
     "test:watch": "node --import tsx --test --watch tests/*.test.ts",
@@ -40,15 +44,30 @@
     "url": "https://github.com/dashersw/memgoose/issues"
   },
   "homepage": "https://github.com/dashersw/memgoose#readme",
+  "peerDependencies": {
+    "better-sqlite3": "^11.0.0",
+    "memgoose-wiredtiger": "^1.0.4"
+  },
+  "peerDependenciesMeta": {
+    "better-sqlite3": {
+      "optional": true
+    },
+    "memgoose-wiredtiger": {
+      "optional": true
+    }
+  },
   "devDependencies": {
     "@eslint/js": "^9.37.0",
+    "@types/better-sqlite3": "^7.6.11",
     "@types/node": "^24.7.1",
     "@typescript-eslint/eslint-plugin": "^8.46.0",
     "@typescript-eslint/parser": "^8.46.0",
+    "better-sqlite3": "^12.4.1",
     "c8": "^10.1.3",
     "eslint": "^9.37.0",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-prettier": "^5.5.4",
+    "memgoose-wiredtiger": "^1.0.4",
     "prettier": "^3.6.2",
     "tsx": "^4.19.2",
     "typescript": "^5.7.2"

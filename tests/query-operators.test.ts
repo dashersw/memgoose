@@ -1,9 +1,11 @@
 import { test } from 'node:test'
 import assert from 'node:assert'
-import { model, Schema } from '../index'
+import { model, Schema, clearRegistry } from '../index'
 import { testUsers } from './fixtures'
 
 test('Model - Query Operators', async t => {
+  t.beforeEach(async () => await clearRegistry())
+
   await t.test('should support $eq operator', async () => {
     const User = model('User', new Schema({}))
     await User.insertMany(testUsers)

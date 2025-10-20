@@ -160,9 +160,22 @@ export class Schema<T extends Record<string, any> = Record<string, any>> {
     }
   }
 
-  index(fields: keyof T | Array<keyof T>, options?: { unique?: boolean }): this {
+  index(
+    fields: keyof T | Array<keyof T> | Record<string, 1 | -1>,
+    options?: { unique?: boolean }
+  ): this {
     // Normalize to array - single field becomes array with one element
-    const normalizedFields = Array.isArray(fields) ? fields : [fields]
+    let normalizedFields: Array<keyof T>
+
+    if (Array.isArray(fields)) {
+      normalizedFields = fields
+    } else if (typeof fields === 'object' && fields !== null) {
+      // Handle Mongoose-style object format: { author: 1, year: -1 }
+      normalizedFields = Object.keys(fields) as Array<keyof T>
+    } else {
+      normalizedFields = [fields]
+    }
+
     this._indexes.push(normalizedFields)
 
     // Track unique constraint

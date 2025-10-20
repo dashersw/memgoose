@@ -1,8 +1,10 @@
 import { test } from 'node:test'
 import assert from 'node:assert'
-import { model, Schema } from '../index'
+import { model, Schema, clearRegistry } from '../index'
 
 test('Model - Edge Cases', async t => {
+  t.beforeEach(async () => await clearRegistry())
+
   await t.test('should work with empty initial data', async () => {
     const User = model('User', new Schema({}))
     const result = await User.findOne({ name: 'Alice' })

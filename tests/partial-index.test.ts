@@ -1,9 +1,11 @@
 import { test } from 'node:test'
 import assert from 'node:assert'
-import { model, Schema } from '../index'
+import { model, Schema, clearRegistry } from '../index'
 import { testUsers } from './fixtures'
 
 test('Partial Index Matching', async t => {
+  t.beforeEach(async () => await clearRegistry())
+
   await t.test('should use single-field index for multi-field query', async () => {
     const User = model('User', new Schema({}))
     await User.insertMany(testUsers)
@@ -314,84 +316,12 @@ test('Partial Index Matching', async t => {
     }
   )
 
-  await t.test(
-    'should handle Map.get returning undefined in exact index match (|| [] branch)',
-    async () => {
-      const User = model('User', new Schema({}))
-      await User.insertMany([
-        { name: 'Alice', age: 25, city: 'NYC' },
-        { name: 'Bob', age: 30, city: 'LA' }
-      ])
+  // Note: This test was removed because indexes are now internal to storage strategies
+  // and not exposed on the Model. The behavior (returning empty results when index keys
+  // don't exist) is already tested by other tests like "should handle exact index match
+  // with non-existent key".
 
-      // Create index
-      User.createIndex(['city'])
-
-      // Access the internal _findDocumentsUsingIndexes to test the || [] branch directly
-      const originalIndexes = (User as any)._indexes
-
-      // Create a mock index that returns undefined for map.get()
-      const mockIndexMap = new Map()
-      mockIndexMap.get = function () {
-        return undefined // This triggers the || [] branch
-      }
-      const mockIndex = new Map()
-      mockIndex.set('city', {
-        fields: ['city'],
-        map: mockIndexMap,
-        unique: false
-      })
-      ;(User as any)._indexes = mockIndex
-
-      // Query using the mocked index
-      const results = await (User as any)._findDocumentsUsingIndexes({ city: 'NYC' })
-
-      // Restore
-      ;(User as any)._indexes = originalIndexes
-
-      // Should return empty array from the || [] fallback
-      assert.strictEqual(results.length, 0)
-    }
-  )
-
-  await t.test(
-    'should handle Map.get returning undefined in partial index match (|| [] branch)',
-    async () => {
-      const User = model('User', new Schema({}))
-      await User.insertMany([
-        { name: 'Alice', age: 25, city: 'NYC', status: 'active' },
-        { name: 'Bob', age: 30, city: 'LA', status: 'active' }
-      ])
-
-      // Create compound index
-      User.createIndex(['city', 'age'])
-
-      const originalIndexes = (User as any)._indexes
-
-      // Create a mock index map that returns undefined for .get()
-      const mockIndexMap = new Map()
-      mockIndexMap.get = function () {
-        return undefined // This triggers the || [] branch in partial index path
-      }
-      const mockIndex = new Map()
-      mockIndex.set('age,city', {
-        fields: ['age', 'city'],
-        map: mockIndexMap,
-        unique: false
-      })
-      ;(User as any)._indexes = mockIndex
-
-      // Query with extra field that would try to use partial index
-      const results = await (User as any)._findDocumentsUsingIndexes({
-        city: 'NYC',
-        age: 25,
-        status: 'active'
-      })
-
-      // Restore
-      ;(User as any)._indexes = originalIndexes
-
-      // Should return empty array from the || [] fallback
-      assert.strictEqual(results.length, 0)
-    }
-  )
+  // Note: This test was removed because indexes are now internal to storage strategies
+  // and not exposed on the Model. The behavior (returning empty results for partial index
+  // matches when keys don't exist) is already tested by other tests.
 })
