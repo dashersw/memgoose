@@ -760,6 +760,12 @@ npm run example:virtuals
 npm run example:showcase
 ```
 
+**Run the memory usage demo** (100,000 documents):
+
+```bash
+npm run example:memory
+```
+
 ### Performance Benchmark Results
 
 The performance example demonstrates the dramatic speedup from indexing on 100,000 documents (20 comprehensive tests):

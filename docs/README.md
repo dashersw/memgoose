@@ -425,6 +425,7 @@ npm run example              # Basic usage
 npm run example:perf         # Performance benchmarks
 npm run example:virtuals     # Virtuals and hooks
 npm run example:showcase     # Complete features
+npm run example:memory       # Memory usage with 100k docs
 npm run example:file         # File storage
 npm run example:sqlite       # SQLite storage
 npm run example:wiredtiger   # WiredTiger storage

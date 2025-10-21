@@ -24,6 +24,7 @@
     "example:sqlite": "tsx examples/sqlite-storage-demo.ts",
     "example:wiredtiger": "tsx examples/wiredtiger-storage-demo.ts",
     "example:compression": "tsx examples/compression-comparison.ts",
+    "example:memory": "node --expose-gc --import tsx examples/memory-usage-demo.ts",
     "benchmark": "tsx examples/performance.ts",
     "test": "node --import tsx --test tests/*.test.ts",
     "test:file": "node --import tsx --test",
