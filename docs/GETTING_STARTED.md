@@ -30,7 +30,11 @@ npm install better-sqlite3
 
 **For WiredTiger storage (optional):**
 
-WiredTiger bindings are built automatically during `npm install`. Requires build tools (see [WIREDTIGER.md](WIREDTIGER.md) for details).
+```bash
+npm install memgoose-wiredtiger
+```
+
+WiredTiger support is provided as a separate package with native bindings. Requires build tools (see [WIREDTIGER.md](WIREDTIGER.md) for details).
 
 ---
 

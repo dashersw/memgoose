@@ -423,27 +423,30 @@ High-performance embedded database engine that powers MongoDB.
 - ✅ Built-in compression
 - ✅ WAL for crash recovery
 - ✅ Production-ready (battle-tested in MongoDB)
-- ⚠️ Requires native compilation
+- ⚠️ Requires separate package installation (`memgoose-wiredtiger`)
+- ⚠️ Package includes native bindings (requires build tools)
 
 ### Installation
 
-WiredTiger bindings are built automatically during `npm install`:
+WiredTiger support is provided as a separate package:
 
 ```bash
-npm install
+npm install memgoose-wiredtiger
 ```
 
 **Build Requirements:**
 
-- Node.js 16+ with N-API support
-- C++ compiler (gcc, clang, or MSVC)
-- Python 3 (for node-gyp)
-- Build tools:
+The `memgoose-wiredtiger` package includes native bindings that require build tools on your system:
+
+- **Node.js**: 16+ with N-API support
+- **C++ compiler**: gcc, clang, or MSVC
+- **Python**: 3.x (for node-gyp)
+- **Build tools**:
   - **macOS**: Xcode Command Line Tools (`xcode-select --install`)
-  - **Linux**: build-essential, autoconf, libtool
+  - **Linux**: `build-essential`, `autoconf`, `libtool`
   - **Windows**: Visual Studio Build Tools
 
-If the build fails, other storage options remain available.
+The native bindings are built automatically during package installation. If the build fails, you can use other storage backends (memory, file, sqlite) instead.
 
 ### Configuration
 
@@ -588,20 +591,27 @@ WiredTiger supports online backups via its API (advanced usage).
 
 ### Troubleshooting
 
-#### Build fails
+#### Build fails during installation
+
+Make sure you have the required build tools installed:
 
 ```bash
-# Build WiredTiger manually
-./scripts/build-wiredtiger.sh
-npm run build:wiredtiger
+# macOS
+xcode-select --install
+
+# Linux (Debian/Ubuntu)
+sudo apt-get install build-essential autoconf libtool
+
+# Then retry
+npm install memgoose-wiredtiger
 ```
 
 #### Runtime error: "WiredTiger native bindings not available"
 
-The native bindings weren't built. Either:
+The `memgoose-wiredtiger` package is not installed or wasn't built successfully. Either:
 
-1. Build manually: `npm run build:wiredtiger`
-2. Use a different storage backend
+1. Install the package: `npm install memgoose-wiredtiger`
+2. Use a different storage backend: `storage: 'sqlite'` or `storage: 'file'`
 
 #### Database won't open: "Resource busy"
 

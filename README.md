@@ -68,7 +68,9 @@ npm install better-sqlite3
 
 **For WiredTiger storage (optional):**
 
-WiredTiger bindings are built automatically during `npm install`. If the build fails, other storage options remain available.
+```bash
+npm install memgoose-wiredtiger
+```
 
 ## Documentation
 
@@ -198,9 +200,15 @@ const User = model('User', userSchema)
 
 High-performance embedded database engine (powers MongoDB). Best for production use with high write throughput.
 
-**Build Requirements:**
+**Installation:**
 
-WiredTiger requires native compilation. Ensure you have build tools installed:
+WiredTiger support is provided as a separate package:
+
+```bash
+npm install memgoose-wiredtiger
+```
+
+This package includes native bindings and requires build tools on your system:
 
 - **macOS**: Xcode Command Line Tools (`xcode-select --install`)
 - **Linux**: `build-essential`, `autoconf`, `libtool`

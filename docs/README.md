@@ -101,6 +101,9 @@ npm install memgoose
 
 # For SQLite storage (optional)
 npm install better-sqlite3
+
+# For WiredTiger storage (optional)
+npm install memgoose-wiredtiger
 ```
 
 ### Basic Usage

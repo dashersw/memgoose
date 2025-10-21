@@ -12,8 +12,8 @@
  * - MVCC (Multi-Version Concurrency Control)
  *
  * Prerequisites:
- * - Run `npm install` to build the WiredTiger native bindings
- * - This will compile WiredTiger and the Node.js bindings
+ * - Install the WiredTiger package: `npm install memgoose-wiredtiger`
+ * - This package includes WiredTiger native bindings for your platform
  */
 
 import { connect, Schema, model } from '../index'
@@ -142,9 +142,13 @@ async function main() {
   } catch (error) {
     console.error('Error:', error)
     if (error instanceof Error && error.message.includes('WiredTiger native bindings')) {
-      console.error('\nTo use WiredTiger storage, you need to build the native bindings:')
-      console.error('  npm install')
-      console.error('  npm run build:wiredtiger')
+      console.error(
+        '\nTo use WiredTiger storage, you need to install the memgoose-wiredtiger package:'
+      )
+      console.error('  npm install memgoose-wiredtiger')
+      console.error(
+        '\nMake sure you have build tools installed (see docs/WIREDTIGER.md for details)'
+      )
     }
   }
 }

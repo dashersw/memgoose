@@ -1,6 +1,6 @@
 # WiredTiger Storage Backend
 
-Memgoose now supports **WiredTiger** as a storage backend! WiredTiger is a high-performance embedded database engine that powers MongoDB. It provides:
+Memgoose supports **WiredTiger** as a storage backend via the separate **`memgoose-wiredtiger`** package. WiredTiger is a high-performance embedded database engine that powers MongoDB. It provides:
 
 - **ACID transactions** - Full transactional support with durability guarantees
 - **High performance** - Optimized for both read and write-heavy workloads
@@ -8,45 +8,27 @@ Memgoose now supports **WiredTiger** as a storage backend! WiredTiger is a high-
 - **Scalability** - MVCC (Multi-Version Concurrency Control) for high concurrency
 - **WAL logging** - Write-Ahead Logging for crash recovery
 
-## Architecture
-
-The WiredTiger integration consists of three layers:
-
-1. **Native Bindings** (`src/storage/wiredtiger/wiredtiger_binding.cc`) - C++ N-API bindings that wrap the WiredTiger C API
-2. **TypeScript Wrapper** (`src/storage/wiredtiger/wiredtiger-native.ts`) - Type-safe wrapper around native bindings
-3. **Storage Strategy** (`src/storage/wiredtiger-strategy.ts`) - Implementation of the `StorageStrategy` interface
-
 ## Installation
+
+WiredTiger support is provided as a separate npm package:
+
+```bash
+npm install memgoose-wiredtiger
+```
 
 ### Prerequisites
 
-- Node.js 16+ with N-API support
-- C++ compiler (gcc, clang, or MSVC)
-- Python 3 (for node-gyp)
-- Build tools:
+The `memgoose-wiredtiger` package includes native bindings that require build tools on your system:
+
+- **Node.js**: 16+ with N-API support
+- **C++ compiler**: gcc, clang, or MSVC
+- **Python**: 3.x (for node-gyp)
+- **Build tools**:
   - **macOS**: Xcode Command Line Tools (`xcode-select --install`)
-  - **Linux**: build-essential, autoconf, libtool
+  - **Linux**: `build-essential`, `autoconf`, `libtool`
   - **Windows**: Visual Studio Build Tools
 
-### Building WiredTiger
-
-The WiredTiger source code is included in `lib/wiredtiger`. To build:
-
-```bash
-# 1. Build WiredTiger library
-./scripts/build-wiredtiger.sh
-
-# 2. Build Node.js bindings
-npm run build:wiredtiger
-```
-
-Or simply run:
-
-```bash
-npm install
-```
-
-This will automatically attempt to build the WiredTiger bindings. If the build fails, the library will still work with other storage backends (memory, file, sqlite).
+The native bindings are built automatically during `npm install memgoose-wiredtiger`. If the build fails, you can use other storage backends (memory, file, sqlite) instead.
 
 ## Usage
 
@@ -168,20 +150,26 @@ For online backups, use WiredTiger's hot backup API (advanced usage).
 
 ## Troubleshooting
 
-### Build fails with "wiredtiger.h not found"
+### Build fails during installation
 
-Make sure WiredTiger is built first:
+Make sure you have the required build tools installed:
 
 ```bash
-./scripts/build-wiredtiger.sh
-npm run build:wiredtiger
+# macOS
+xcode-select --install
+
+# Linux (Debian/Ubuntu)
+sudo apt-get install build-essential autoconf libtool
+
+# Then retry installation
+npm install memgoose-wiredtiger
 ```
 
 ### Runtime error: "WiredTiger native bindings not available"
 
-The native bindings weren't built successfully. Options:
+The `memgoose-wiredtiger` package is not installed or wasn't built successfully. Options:
 
-1. Build manually: `npm run build:wiredtiger`
+1. Install the package: `npm install memgoose-wiredtiger`
 2. Use a different storage backend: `storage: 'sqlite'` or `storage: 'file'`
 
 ### Database won't open: "Resource busy"
@@ -254,14 +242,22 @@ See [WiredTiger documentation](http://source.wiredtiger.com/develop/index.html) 
 
 ## Contributing
 
-Found a bug or want to improve the WiredTiger integration? Check out:
+Found a bug or want to improve the WiredTiger integration? The `memgoose-wiredtiger` package is maintained separately:
 
-- Native bindings: `src/storage/wiredtiger/wiredtiger_binding.cc`
-- Storage strategy: `src/storage/wiredtiger-strategy.ts`
-- Build configuration: `binding.gyp`
+- Repository: [memgoose-wiredtiger on npm](https://www.npmjs.com/package/memgoose-wiredtiger)
+- Integration in memgoose: `src/storage/wiredtiger-strategy.ts`
+
+## Package Information
+
+The `memgoose-wiredtiger` package provides:
+
+- WiredTiger native bindings compiled for your platform
+- C++ N-API bindings that wrap the WiredTiger C API
+- Pre-built binaries for common platforms (when available)
+- Automatic compilation fallback when pre-built binaries are unavailable
 
 ## License
 
-WiredTiger is licensed under GPL v2 with linking exception. See `lib/wiredtiger/LICENSE` for details.
+The `memgoose-wiredtiger` package includes WiredTiger, which is licensed under GPL v2 with linking exception, allowing commercial use.
 
-The memgoose WiredTiger integration is MIT licensed.
+The memgoose core library is MIT licensed.
