@@ -32,7 +32,7 @@ const count = await User.countDocuments({ age: { $gte: 18 } })
 
 ## Features
 
-- 🚀 **Fast**: O(1) lookups with indexing support (10-300x faster than linear scan)
+- 🚀 **Fast**: O(1) lookups with indexing support (83-1147x faster than linear scan)
 - 🎯 **Type-safe**: Written in TypeScript with full type definitions
 - 🔍 **Rich Queries**: MongoDB-like query operators ($eq, $ne, $in, $nin, $gt, $gte, $lt, $lte, $regex, $exists, $size, $elemMatch, $all)
 - 🧮 **Logical Operators**: $or, $and, $nor, $not for complex query logic
@@ -783,26 +783,26 @@ npm run example:memory
 
 The performance example demonstrates the dramatic speedup from indexing on 100,000 documents (20 comprehensive tests):
 
-| Operation Type           | Indexed  | Non-Indexed | Speedup         |
-| ------------------------ | -------- | ----------- | --------------- |
-| Equality query           | ~0.2ms   | ~11.8ms     | **59x faster**  |
-| Compound index query     | ~0.03ms  | ~11.8ms     | **393x faster** |
-| find() many results      | ~10.8ms  | ~36.5ms     | **3.4x faster** |
-| count() operation        | ~8.2ms   | ~33ms       | **4x faster**   |
-| update() operation       | ~0.31ms  | ~20.2ms     | **65x faster**  |
-| delete() operation       | ~0.14ms  | -           | **Ultra-fast**  |
-| Lean query (no virtuals) | ~0.035ms | -           | **309x faster** |
-| Pagination (skip/limit)  | ~0.19ms  | -           | Efficient       |
-| Partial index + filter   | ~28.6ms  | ~33ms       | **1.2x faster** |
+| Operation Type           | Indexed | Non-Indexed | Speedup          |
+| ------------------------ | ------- | ----------- | ---------------- |
+| Equality query           | ~0ms    | ~2.01ms     | **431x faster**  |
+| Compound index query     | ~0ms    | ~2.01ms     | **1147x faster** |
+| find() many results      | ~12.0ms | ~11.1ms     | **0.9x faster**  |
+| count() operation        | ~11.6ms | ~24.4ms     | **2x faster**    |
+| update() operation       | ~0.02ms | ~2.09ms     | **83x faster**   |
+| delete() operation       | ~0.12ms | -           | **Ultra-fast**   |
+| Lean query (no virtuals) | ~0.70ms | -           | **17.5x faster** |
+| Pagination (skip/limit)  | ~0.19ms | -           | Efficient        |
+| Partial index + filter   | ~28.6ms | ~33ms       | **1.2x faster**  |
 
 **Key Performance Insights:**
 
-- **Indexed equality queries**: Sub-millisecond (~0.2ms)
-- **Compound indexes**: Ultra-fast at 0.03ms (7x faster than single-field!)
-- **Updates with indexes**: Blazing fast at 0.31ms (65x faster than non-indexed!)
-- **Deletes with indexes**: Lightning fast at 0.14ms
-- **Lean queries**: Up to 309x faster by skipping virtual computation
-- **Overall**: Indexes provide **10-393x speedup** for equality queries
+- **Indexed equality queries**: Sub-millisecond (~0.01ms)
+- **Compound indexes**: Ultra-fast at ~0.01ms (equally fast as single-field!)
+- **Updates with indexes**: Blazing fast at 0.02ms (83x faster than non-indexed!)
+- **Deletes with indexes**: Lightning fast at 0.12ms
+- **Lean queries**: Up to 17.5x faster by skipping virtual computation
+- **Overall**: Indexes provide **83-1147x speedup** for equality queries
 
 See [examples/README.md](./examples/README.md) for detailed benchmark results with all 20 tests.
 
