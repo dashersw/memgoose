@@ -1089,7 +1089,7 @@ Query filter object with MongoDB-like operators.
 ```typescript
 type Query<T> = {
   [K in keyof T]?: T[K] | QueryOperator<T[K]>
-}
+} & LogicalQueryOperators<T>
 
 type QueryOperator<T> = {
   $eq?: T
@@ -1101,6 +1101,18 @@ type QueryOperator<T> = {
   $lt?: T
   $lte?: T
   $regex?: string | RegExp
+  $exists?: boolean
+  $size?: number
+  $elemMatch?: Record<string, unknown>
+  $all?: T extends unknown[] ? T : never
+  $not?: QueryOperator<T>
+}
+
+// Logical operators
+type LogicalQueryOperators<T> = {
+  $or?: Query<T>[]
+  $and?: Query<T>[]
+  $nor?: Query<T>[]
 }
 ```
 

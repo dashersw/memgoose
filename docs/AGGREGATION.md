@@ -1541,19 +1541,18 @@ memgoose aims for MongoDB compatibility but has some differences:
 
 ### Not Yet Supported
 
-- `$facet` - Multiple pipelines
-- `$bucket` - Bucketing
 - `$graphLookup` - Recursive lookup
 - `$redact` - Document redaction
-- `$out` / `$merge` - Output to collection
+- Text search stages (`$text`, `$search`)
+- `$geoNear` - Geospatial queries
+- `$collStats` - Collection statistics
 - Complex nested pipeline expressions in `$lookup`
-- Text search stages
 
 ### memgoose Specific
 
 - Aggregation is performed in-memory after loading documents
-- WiredTiger optimizations available (planned)
 - All stages work uniformly across storage backends
+- Automatic index optimization when `$match` is the first stage
 
 ---
 

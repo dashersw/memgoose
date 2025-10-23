@@ -24,13 +24,14 @@ Complete documentation for memgoose - a lightweight, high-performance in-memory 
    - Validation (required, min/max, enum, regex, custom)
    - Defaults
    - Getters and setters
-   - Indexes (single-field, compound, unique)
+   - Indexes (single-field, compound, unique, TTL)
    - Timestamps
    - Subdocuments
    - Methods and statics
 
 3. **[Queries](QUERIES.md)**
-   - Query operators ($eq, $ne, $in, $nin, $gt, $gte, $lt, $lte, $regex)
+   - Query operators ($eq, $ne, $in, $nin, $gt, $gte, $lt, $lte, $regex, $exists, $size, $elemMatch, $all)
+   - Logical operators ($or, $and, $nor, $not)
    - Update operators ($set, $unset, $inc, $dec, $push, $pull, $addToSet, $pop, $rename)
    - Query options (sort, limit, skip, lean, select, populate)
    - Query chaining
@@ -40,7 +41,15 @@ Complete documentation for memgoose - a lightweight, high-performance in-memory 
    - Populate (references)
    - Atomic operations (findOneAndUpdate, findOneAndDelete)
 
-4. **[Storage Backends](STORAGE.md)**
+4. **[Aggregation](AGGREGATION.md)** 🆕
+   - Complete aggregation pipeline
+   - Pipeline stages ($match, $group, $project, $lookup, $unwind, $sort, $limit, $skip, $count, $addFields, $replaceRoot, $sample)
+   - Advanced stages ($bucket, $bucketAuto, $facet, $out, $merge)
+   - Expression operators (date, string, array, type conversion, conditional, object)
+   - Accumulator operators ($sum, $avg, $min, $max, $first, $last, $push, $addToSet)
+   - Real-world examples and performance tips
+
+5. **[Storage Backends](STORAGE.md)**
    - Memory storage (default, fastest)
    - File storage (NDJSON + WAL)
    - SQLite storage (ACID, production-ready)
@@ -50,7 +59,7 @@ Complete documentation for memgoose - a lightweight, high-performance in-memory 
 
 ### Advanced Features
 
-5. **[Advanced Features](ADVANCED.md)**
+6. **[Advanced Features](ADVANCED.md)**
    - Virtuals (computed properties)
    - Hooks/middleware (pre/post save, update, delete, find)
    - Populate (document references)
@@ -62,17 +71,17 @@ Complete documentation for memgoose - a lightweight, high-performance in-memory 
    - Subdocuments (nested schemas)
    - Timestamps
 
-6. **[Performance Guide](PERFORMANCE.md)**
-   - Index performance (10-393x speedup!)
+7. **[Performance Guide](PERFORMANCE.md)**
+   - Index performance (83-1147x speedup!)
    - Query optimization
    - Storage performance comparison
-   - Lean queries (5-10x faster)
+   - Lean queries (17.5x faster)
    - Batch operations
    - Comprehensive benchmarks
    - Best practices
    - Profiling techniques
 
-7. **[WiredTiger Storage](WIREDTIGER.md)**
+8. **[WiredTiger Storage](WIREDTIGER.md)**
    - Architecture and features
    - Installation and build requirements
    - Configuration options
@@ -82,11 +91,12 @@ Complete documentation for memgoose - a lightweight, high-performance in-memory 
 
 ### Reference
 
-8. **[API Reference](API.md)**
+9. **[API Reference](API.md)**
    - Schema class and methods
    - Model class and methods
    - Database and connection management
    - Query builders (FindQueryBuilder, DocumentQueryBuilder)
+   - Aggregation engine
    - ObjectId
    - Storage strategies
    - Type definitions
@@ -168,17 +178,19 @@ process.on('SIGINT', async () => {
 
 ### 🚀 Performance
 
-- **O(1) lookups** with indexing (10-393x faster!)
+- **O(1) lookups** with indexing (83-1147x faster!)
 - **Compound indexes** for multi-field queries
-- **Lean queries** for 5-10x faster reads
+- **Lean queries** for 17.5x faster reads
 - **Batch operations** for bulk inserts/updates
 - **Partial index matching** for complex queries
+- **TTL indexes** for automatic document expiration
 
 ### 🎯 MongoDB-like API
 
-- **Query operators**: $eq, $ne, $in, $nin, $gt, $gte, $lt, $lte, $regex
+- **Query operators**: $eq, $ne, $in, $nin, $gt, $gte, $lt, $lte, $regex, $exists, $size, $elemMatch, $all
+- **Logical operators**: $or, $and, $nor, $not
 - **Update operators**: $set, $unset, $inc, $dec, $push, $pull, $addToSet, $pop, $rename
-- **Aggregation**: count, distinct
+- **Aggregation pipeline**: Complete pipeline with 20+ stages
 - **Atomic operations**: findOneAndUpdate, findOneAndDelete
 
 ### 📊 Schema Features
@@ -186,7 +198,7 @@ process.on('SIGINT', async () => {
 - **Validation**: required, min/max, minLength/maxLength, enum, regex, custom
 - **Defaults**: static values or functions
 - **Getters/setters**: Transform values on read/write
-- **Indexes**: Single-field, compound, unique
+- **Indexes**: Single-field, compound, unique, TTL
 - **Timestamps**: Auto-managed createdAt/updatedAt
 - **Subdocuments**: Nested schemas
 
@@ -317,6 +329,7 @@ memgoose/
 ├── Model           # Query engine with CRUD operations
 ├── Database        # Database management and model registry
 ├── Connection      # Connection and configuration
+├── Aggregation     # Aggregation pipeline engine 🆕
 ├── Storage         # Pluggable storage strategies
 │   ├── Memory      # In-memory (default)
 │   ├── File        # NDJSON + WAL
@@ -377,6 +390,18 @@ async function paginate(page: number, perPage: number) {
 }
 ```
 
+### Aggregation Analytics
+
+```typescript
+// Sales analytics with aggregation pipeline
+const salesByCategory = await Sale.aggregate([
+  { $match: { date: { $gte: startDate } } },
+  { $group: { _id: '$category', total: { $sum: '$amount' } } },
+  { $sort: { total: -1 } },
+  { $limit: 10 }
+])
+```
+
 ### Caching
 
 ```typescript
@@ -418,6 +443,7 @@ const User = model('User', userSchema)
 - Some advanced features not yet implemented
 - Better TypeScript support
 - No MongoDB connection needed
+- Full aggregation pipeline support
 
 ## Examples
 
@@ -432,6 +458,7 @@ npm run example:memory       # Memory usage with 100k docs
 npm run example:file         # File storage
 npm run example:sqlite       # SQLite storage
 npm run example:wiredtiger   # WiredTiger storage
+npm run example:aggregation  # Aggregation pipeline demo 🆕
 ```
 
 ## Contributing

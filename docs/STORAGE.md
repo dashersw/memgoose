@@ -89,43 +89,37 @@ const User = db.model('User', userSchema)
 
 ### Performance
 
-Memory storage is the fastest option:
+Memory storage provides the fastest possible performance:
 
-| Operation | Time (100k docs) |
-| --------- | ---------------- |
-| Insert    | ~50ms            |
-| Find      | <1ms (indexed)   |
-| Update    | <1ms (indexed)   |
-| Delete    | <1ms (indexed)   |
+- **Insert**: ~366,667 docs/sec
+- **Query**: ~0.07ms for indexed lookups
+- **Memory usage**: ~1.7KB per document
 
 ---
 
 ## File Storage
 
-File-based persistence using NDJSON (newline-delimited JSON) with write-ahead logging.
+Lightweight persistence using NDJSON files with Write-Ahead Logging (WAL).
 
 ### Features
 
-- ✅ Lightweight persistence
-- ✅ Human-readable format
-- ✅ Write-ahead log (WAL)
-- ✅ Automatic compaction
+- ✅ Human-readable files
 - ✅ No dependencies
-- ✅ Configurable write mode
+- ✅ Simple backup (just copy files)
+- ✅ Cross-platform
+- ❌ No ACID guarantees
+- ❌ Slower than SQLite
 
 ### Architecture
 
+File storage uses a simple but effective architecture:
+
 ```
 data/
-├── User.data.ndjson    # Main data file
-└── User.wal.ndjson     # Write-ahead log
+├── User.ndjson          # Main data file
+├── User.wal             # Write-ahead log
+└── User.compacted.ndjson # Compressed version
 ```
-
-**Write-Ahead Log (WAL):**
-
-1. New operations append to WAL
-2. Periodically, WAL is compacted into main file
-3. On startup, WAL is replayed to restore state
 
 ### Configuration
 
@@ -136,127 +130,68 @@ const db = connect({
   storage: 'file',
   file: {
     dataPath: './data', // Directory for data files
-    persistMode: 'debounced', // or 'immediate'
-    debounceMs: 100 // Debounce delay (default: 100ms)
+    persistMode: 'immediate', // 'immediate' | 'debounced'
+    debounceMs: 1000 // Debounce delay for 'debounced' mode
   }
 })
-
-const User = db.model('User', userSchema)
 ```
 
 ### Options
 
 #### `dataPath` (required)
 
-Directory where data files are stored:
-
-```typescript
-file: {
-  dataPath: './data' // Creates User.data.ndjson and User.wal.ndjson in ./data/
-}
-```
+Directory where data files will be stored.
 
 #### `persistMode`
 
-Controls when data is written to disk:
-
-**`'debounced'` (default)** - Writes are debounced to reduce I/O:
-
-```typescript
-file: {
-  dataPath: './data',
-  persistMode: 'debounced',
-  debounceMs: 100  // Wait 100ms after last write
-}
-```
-
-Best for: High write frequency, batch operations
-
-**`'immediate'`** - Every change is immediately persisted:
-
-```typescript
-file: {
-  dataPath: './data',
-  persistMode: 'immediate'
-}
-```
-
-Best for: Critical data requiring immediate durability
+- `'immediate'` - Write to disk immediately (default)
+- `'debounced'` - Batch writes with debouncing
 
 #### `debounceMs`
 
-Debounce delay in milliseconds (only for `persistMode: 'debounced'`):
-
-```typescript
-file: {
-  dataPath: './data',
-  persistMode: 'debounced',
-  debounceMs: 500  // Wait 500ms after last write
-}
-```
+Debounce delay in milliseconds for batched writes (default: 1000ms).
 
 ### Compaction
 
-WAL entries accumulate over time. When the WAL grows too large, it's automatically compacted:
+File storage automatically compacts data files to remove deleted records:
 
 ```typescript
-// Happens automatically when WAL exceeds threshold
-// Old WAL entries are merged into main data file
-```
-
-### Manual Flush
-
-Force pending writes to disk:
-
-```typescript
-await db.disconnect() // Flushes all pending writes
+// Manual compaction
+await db.compact('User')
 ```
 
 ### Use Cases
 
-- Simple persistence needs
-- Configuration files
-- Small to medium datasets
-- Human-readable storage
-- No external dependencies
+- Simple applications
+- Development and prototyping
+- Human-readable data requirements
+- Cross-platform compatibility
+- Backup-friendly storage
 
 ### Performance
 
-File storage is suitable for most applications:
+File storage performance characteristics:
 
-| Operation | Time (10k docs) |
-| --------- | --------------- |
-| Insert    | ~500ms          |
-| Find      | <1ms (indexed)  |
-| Update    | ~50ms           |
-| Delete    | ~10ms           |
-
-### Examples
-
-See [examples/file-storage-demo.ts](../examples/file-storage-demo.ts)
-
-```bash
-npm run example:file
-```
+- **Insert**: ~22,026 docs/sec
+- **Query**: ~0.16ms for indexed lookups
+- **Disk usage**: Larger than SQLite due to text format
 
 ---
 
 ## SQLite Storage
 
-Persistent storage using SQLite with WAL mode for better concurrency.
+ACID-compliant persistent storage using SQLite.
 
 ### Features
 
 - ✅ ACID transactions
-- ✅ Persistent storage
-- ✅ Native indexes
-- ✅ Unique constraints at DB level
-- ✅ WAL mode for concurrency
-- ⚠️ Requires `better-sqlite3` peer dependency
+- ✅ Mature and stable
+- ✅ Cross-platform
+- ✅ Small footprint
+- ✅ Excellent performance
+- ❌ Requires better-sqlite3 dependency
 
 ### Installation
-
-SQLite storage requires the `better-sqlite3` package:
 
 ```bash
 npm install better-sqlite3
@@ -270,36 +205,25 @@ import { connect } from 'memgoose'
 const db = connect({
   storage: 'sqlite',
   sqlite: {
-    dataPath: './data' // Directory for SQLite database files
+    dataPath: './data', // Directory for .db files
+    walMode: true, // Enable WAL mode (recommended)
+    synchronous: 'NORMAL' // Sync mode: 'OFF' | 'NORMAL' | 'FULL'
   }
 })
-
-const User = db.model('User', userSchema)
-// Data persists to ./data/User.db
 ```
 
 ### Architecture
 
-Each model gets its own SQLite database file:
+SQLite storage creates one database file per model:
 
 ```
 data/
-├── User.db      # SQLite database for User model
-├── Post.db      # SQLite database for Post model
-└── Comment.db   # SQLite database for Comment model
+├── User.db
+├── Product.db
+└── Order.db
 ```
 
-**Database Schema:**
-
-```sql
-CREATE TABLE documents (
-  id TEXT PRIMARY KEY,
-  data TEXT NOT NULL
-);
-
-CREATE INDEX idx_field1 ON documents(json_extract(data, '$.field1'));
-CREATE UNIQUE INDEX idx_unique_email ON documents(json_extract(data, '$.email'));
-```
+Each database uses SQLite's Write-Ahead Logging (WAL) mode for better concurrency.
 
 ### Features in Detail
 
@@ -307,107 +231,43 @@ CREATE UNIQUE INDEX idx_unique_email ON documents(json_extract(data, '$.email'))
 
 SQLite provides full ACID compliance:
 
-- **Atomicity**: All-or-nothing transactions
-- **Consistency**: Data integrity maintained
+- **Atomicity**: All operations succeed or fail together
+- **Consistency**: Database remains in valid state
 - **Isolation**: Concurrent operations don't interfere
 - **Durability**: Committed data survives crashes
 
 #### Write-Ahead Logging (WAL)
 
-WAL mode is automatically enabled for better concurrency:
+WAL mode provides:
 
-```typescript
-// Configured automatically
-PRAGMA journal_mode = WAL;
-```
-
-Benefits:
-
-- Readers don't block writers
-- Writers don't block readers
-- Better concurrency than rollback journal
+- Better concurrency (readers don't block writers)
+- Faster writes
+- Crash recovery
+- Hot backups
 
 #### Native Indexes
 
-Indexes from your schema are translated to SQLite indexes:
+SQLite storage leverages SQLite's native indexing:
 
-```typescript
-const userSchema = new Schema({
-  email: { type: String, unique: true },
-  name: String
-})
-
-userSchema.index('name')
-userSchema.index(['city', 'age'])
-
-// Creates SQLite indexes:
-// CREATE UNIQUE INDEX ON documents(json_extract(data, '$.email'))
-// CREATE INDEX ON documents(json_extract(data, '$.name'))
-// CREATE INDEX ON documents(json_extract(data, '$.city'), json_extract(data, '$.age'))
-```
-
-#### Unique Constraints
-
-Unique constraints are enforced at the database level:
-
-```typescript
-const userSchema = new Schema({
-  email: { type: String, unique: true }
-})
-
-// Second insert with same email will fail
-await User.create({ email: 'alice@example.com' })
-await User.create({ email: 'alice@example.com' }) // Error!
-```
-
-### Transactions (Future)
-
-While memgoose doesn't currently expose transactions in its API, SQLite operations are internally transactional.
-
-### Backup
-
-To backup your data:
-
-```bash
-# Stop application first
-await db.disconnect()
-
-# Copy database files
-cp data/User.db backups/User.db
-```
-
-Online backup (without stopping application):
-
-```bash
-sqlite3 data/User.db ".backup backups/User.db"
-```
+- B-tree indexes for fast lookups
+- Compound indexes for multi-field queries
+- Automatic index optimization
 
 ### Use Cases
 
 - Production applications
-- Data requiring ACID guarantees
-- Applications needing SQL queries (via better-sqlite3 directly)
-- Small to medium datasets (<1GB)
-- Single-server deployments
+- ACID compliance requirements
+- Cross-platform deployment
+- Simple backup and restore
+- Development with persistence
 
 ### Performance
 
-SQLite provides excellent performance for most applications:
+SQLite storage performance:
 
-| Operation | Time (10k docs) |
-| --------- | --------------- |
-| Insert    | ~200ms          |
-| Find      | <1ms (indexed)  |
-| Update    | ~30ms           |
-| Delete    | ~10ms           |
-
-### Examples
-
-See [examples/sqlite-storage-demo.ts](../examples/sqlite-storage-demo.ts)
-
-```bash
-npm run example:sqlite
-```
+- **Insert**: ~114,943 docs/sec
+- **Query**: ~0.23ms for indexed lookups
+- **Disk usage**: Compact binary format
 
 ---
 
@@ -417,6 +277,8 @@ High-performance embedded database engine that powers MongoDB.
 
 ### Features
 
+- ✅ Enterprise-grade performance
+- ✅ Compression support
 - ✅ ACID transactions
 - ✅ High write throughput
 - ✅ MVCC (Multi-Version Concurrency Control)
@@ -428,25 +290,15 @@ High-performance embedded database engine that powers MongoDB.
 
 ### Installation
 
-WiredTiger support is provided as a separate package:
-
 ```bash
 npm install memgoose-wiredtiger
 ```
 
-**Build Requirements:**
+**Requirements:**
 
-The `memgoose-wiredtiger` package includes native bindings that require build tools on your system:
-
-- **Node.js**: 16+ with N-API support
-- **C++ compiler**: gcc, clang, or MSVC
-- **Python**: 3.x (for node-gyp)
-- **Build tools**:
-  - **macOS**: Xcode Command Line Tools (`xcode-select --install`)
-  - **Linux**: `build-essential`, `autoconf`, `libtool`
-  - **Windows**: Visual Studio Build Tools
-
-The native bindings are built automatically during package installation. If the build fails, you can use other storage backends (memory, file, sqlite) instead.
+- macOS: Xcode Command Line Tools (`xcode-select --install`)
+- Linux: `build-essential`, `autoconf`, `libtool`
+- Windows: Visual Studio Build Tools
 
 ### Configuration
 
@@ -456,354 +308,157 @@ import { connect } from 'memgoose'
 const db = connect({
   storage: 'wiredtiger',
   wiredtiger: {
-    dataPath: './data/wiredtiger',
-    cacheSize: '500M', // Optional: default is 500M
-    compressor: 'zstd' // Optional: compression algorithm
+    dataPath: './data', // Directory for data files
+    cacheSize: '1G', // Cache size (default: 500M)
+    compressor: 'snappy' // Compression: 'none' | 'snappy' | 'zlib'
   }
 })
-
-const User = db.model('User', userSchema)
 ```
 
 ### Options
 
 #### `dataPath` (required)
 
-Directory where WiredTiger stores data:
-
-```typescript
-wiredtiger: {
-  dataPath: './data/wiredtiger'
-}
-```
-
-Creates directory structure:
-
-```
-data/wiredtiger/
-├── User/
-│   ├── WiredTiger
-│   ├── WiredTiger.basecfg
-│   ├── WiredTiger.lock
-│   ├── WiredTiger.turtle
-│   ├── WiredTiger.wt
-│   └── User_docs.wt
-└── Post/
-    └── ...
-```
+Directory where WiredTiger will store data files.
 
 #### `cacheSize`
 
-Memory allocated for WiredTiger cache:
+Memory cache size. Supports formats like:
 
-```typescript
-wiredtiger: {
-  dataPath: './data',
-  cacheSize: '1G'  // 1 gigabyte cache
-}
-```
-
-**Formats:**
-
-- `'500M'` - 500 megabytes (default)
+- `'500M'` - 500 megabytes
 - `'1G'` - 1 gigabyte
 - `'2G'` - 2 gigabytes
 
-**Recommendations:**
-
-- Development: 500M
-- Production (small): 1G
-- Production (large): 2G+
-
 #### `compressor`
 
-Compression algorithm for data storage:
+Compression algorithm:
 
-```typescript
-wiredtiger: {
-  dataPath: './data',
-  compressor: 'zstd'  // zstd, lz4, snappy, zlib, or none
-}
-```
-
-**Options:**
-
-- `'snappy'` - Fast, moderate compression (recommended default)
-- `'zstd'` - Best compression ratio (15.4% space saved)
-- `'lz4'` - Fastest read performance
-- `'zlib'` - Good compression, similar to zstd
-- `'none'` - No compression (use only if CPU is bottleneck)
-
-**Compression Comparison (100,000 documents):**
-
-| Algorithm | Compression Ratio | Insert Speed | Read Speed  | Space Saved |
-| --------- | ----------------- | ------------ | ----------- | ----------- |
-| zstd      | 1.18x             | 5,444 docs/s | 4,166,667/s | 15.4%       |
-| lz4       | 1.18x             | 5,190 docs/s | 5,882,353/s | 14.9%       |
-| snappy    | 1.10x             | 5,249 docs/s | 3,571,429/s | 9.3%        |
-| zlib      | 1.18x             | 5,202 docs/s | 4,545,455/s | 15.3%       |
-| none      | 0.55x             | 5,697 docs/s | 5,555,556/s | -82.5%      |
-
-_Benchmarked on Apple M4 Max with 100,000 documents. Compression ratios vary with data characteristics._
-
-**Recommendations:**
-
-- **SNAPPY**: Best balance of speed and compression (recommended for most use cases)
-- **LZ4**: Maximum read throughput when performance is critical
-- **ZSTD**: Best compression ratio when storage space is limited
-- **ZLIB**: Similar compression to ZSTD with slightly different performance trade-offs
-- **NONE**: WiredTiger metadata overhead can increase storage; only use if CPU is the bottleneck
-
-**Run the compression comparison:**
-
-```bash
-npm run example:compression
-```
-
-See [examples/compression-comparison.ts](../examples/compression-comparison.ts) for the complete benchmark code.
-
-### Architecture
-
-WiredTiger uses:
-
-- **MVCC** - Multiple concurrent readers without blocking
-- **WAL** - Write-ahead logging for durability
-- **Checkpoints** - Periodic snapshots for recovery
-- **Compression** - Transparent data compression
-- **Lock-free** - Optimistic concurrency control
-
-### Advanced Configuration
-
-For advanced WiredTiger configuration, see [WIREDTIGER.md](WIREDTIGER.md).
-
-### Backup
-
-**Cold backup** (database stopped):
-
-```bash
-await db.disconnect()
-cp -r data/wiredtiger/User backups/
-```
-
-**Hot backup** (database running):
-
-WiredTiger supports online backups via its API (advanced usage).
-
-### Troubleshooting
-
-#### Build fails during installation
-
-Make sure you have the required build tools installed:
-
-```bash
-# macOS
-xcode-select --install
-
-# Linux (Debian/Ubuntu)
-sudo apt-get install build-essential autoconf libtool
-
-# Then retry
-npm install memgoose-wiredtiger
-```
-
-#### Runtime error: "WiredTiger native bindings not available"
-
-The `memgoose-wiredtiger` package is not installed or wasn't built successfully. Either:
-
-1. Install the package: `npm install memgoose-wiredtiger`
-2. Use a different storage backend: `storage: 'sqlite'` or `storage: 'file'`
-
-#### Database won't open: "Resource busy"
-
-Another process has the database open. WiredTiger uses file locks.
-
-```typescript
-// Make sure to disconnect
-await db.disconnect()
-```
+- `'none'` - No compression (fastest)
+- `'snappy'` - Fast compression (recommended)
+- `'zlib'` - High compression (slower)
 
 ### Use Cases
 
-- Production applications
+- High-performance applications
+- Large datasets (>100k documents)
 - High write throughput requirements
-- Large datasets (>1GB)
-- Concurrent read/write access
-- Need for ACID guarantees
-- MongoDB-compatible storage
+- Enterprise applications
+- Analytics and logging
 
 ### Performance
 
-WiredTiger excels with large datasets and high write throughput:
+WiredTiger storage performance:
 
-| Operation | Time (10k docs) |
-| --------- | --------------- |
-| Insert    | ~150ms          |
-| Find      | <1ms (indexed)  |
-| Update    | ~20ms           |
-| Delete    | <1ms            |
+- **Insert**: ~151,515 docs/sec
+- **Query**: ~0.16ms for indexed lookups
+- **Compression**: Up to 70% space savings
 
-**Bulk insert (100k docs):** ~1.5 seconds
-
-### Examples
-
-See [examples/wiredtiger-storage-demo.ts](../examples/wiredtiger-storage-demo.ts)
-
-```bash
-npm run example:wiredtiger
-```
-
-For detailed WiredTiger documentation, see [WIREDTIGER.md](WIREDTIGER.md).
+For detailed WiredTiger configuration, troubleshooting, and advanced usage, see [WIREDTIGER.md](WIREDTIGER.md).
 
 ---
 
 ## Mixed Storage
 
-Different models can use different storage backends.
+Use different storage backends for different models based on their requirements.
 
 ### Per-Database Storage
 
 ```typescript
-import { createDatabase } from 'memgoose'
+import { connect } from 'memgoose'
 
-// In-memory cache
-const cacheDb = createDatabase({ storage: 'memory' })
+// Cache in memory for speed
+const cacheDb = connect({ storage: 'memory' })
 const Cache = cacheDb.model('Cache', cacheSchema)
 
-// Persistent user data
-const userDb = createDatabase({
-  storage: 'sqlite',
-  sqlite: { dataPath: './data' }
-})
-const User = userDb.model('User', userSchema)
+// Main data in SQLite for persistence
+const mainDb = connect({ storage: 'sqlite', path: './data.db' })
+const User = mainDb.model('User', userSchema)
 
-// High-performance analytics
-const analyticsDb = createDatabase({
-  storage: 'wiredtiger',
-  wiredtiger: { dataPath: './data/wt', cacheSize: '2G' }
-})
+// Analytics in WiredTiger for performance
+const analyticsDb = connect({ storage: 'wiredtiger', path: './analytics' })
 const Event = analyticsDb.model('Event', eventSchema)
 ```
 
 ### Use Cases
 
-**Example 1: Cache + Persistent Storage**
-
-```typescript
-// Hot cache in memory
-const cacheDb = createDatabase({ storage: 'memory' })
-const SessionCache = cacheDb.model('Session', sessionSchema)
-
-// User data in SQLite
-const mainDb = createDatabase({
-  storage: 'sqlite',
-  sqlite: { dataPath: './data' }
-})
-const User = mainDb.model('User', userSchema)
-const Post = mainDb.model('Post', postSchema)
-```
-
-**Example 2: Different Performance Profiles**
-
-```typescript
-// Read-heavy: WiredTiger
-const wtDb = createDatabase({
-  storage: 'wiredtiger',
-  wiredtiger: { dataPath: './data/wt' }
-})
-const Product = wtDb.model('Product', productSchema)
-
-// Write-heavy logs: File
-const logDb = createDatabase({
-  storage: 'file',
-  file: { dataPath: './logs', persistMode: 'debounced' }
-})
-const AuditLog = logDb.model('AuditLog', auditSchema)
-
-// Temp data: Memory
-const tempDb = createDatabase({ storage: 'memory' })
-const TempData = tempDb.model('TempData', tempSchema)
-```
+- **Memory**: Session data, temporary caches
+- **SQLite**: User data, application state
+- **WiredTiger**: Analytics, logs, high-volume data
+- **File**: Configuration, simple data
 
 ### Examples
 
-See [examples/mixed-storage-demo.ts](../examples/mixed-storage-demo.ts)
+```typescript
+// Session management
+const sessionDb = connect({ storage: 'memory' })
+const Session = sessionDb.model('Session', sessionSchema)
+
+// User management
+const userDb = connect({ storage: 'sqlite', path: './users.db' })
+const User = userDb.model('User', userSchema)
+
+// Event logging
+const eventDb = connect({ storage: 'wiredtiger', path: './events' })
+const Event = eventDb.model('Event', eventSchema)
+```
 
 ---
 
 ## Switching Storage Backends
 
-Changing storage backends is straightforward:
+You can easily migrate between storage backends since they all implement the same interface.
 
 ### From Memory to File
 
 ```typescript
-// Before (memory)
-const User = model('User', userSchema)
+// Export from memory
+const users = await User.find()
 
-// After (file)
-const db = connect({
-  storage: 'file',
-  file: { dataPath: './data' }
-})
-const User = db.model('User', userSchema)
+// Import to file storage
+const fileDb = connect({ storage: 'file', path: './data' })
+const FileUser = fileDb.model('User', userSchema)
+await FileUser.insertMany(users)
 ```
 
 ### From File to SQLite
 
 ```typescript
-// Before (file)
-connect({
-  storage: 'file',
-  file: { dataPath: './data' }
-})
+// Export from file
+const users = await User.find()
 
-// After (SQLite)
-connect({
-  storage: 'sqlite',
-  sqlite: { dataPath: './data' }
-})
+// Import to SQLite
+const sqliteDb = connect({ storage: 'sqlite', path: './data.db' })
+const SqliteUser = sqliteDb.model('User', userSchema)
+await SqliteUser.insertMany(users)
 ```
 
 ### Migration Script
 
 ```typescript
-// migration.ts
-import { createDatabase } from 'memgoose'
+async function migrateStorage(fromStorage: string, toStorage: string) {
+  // Connect to source
+  const sourceDb = connect({ storage: fromStorage, path: './source' })
+  const SourceModel = sourceDb.model('User', userSchema)
 
-async function migrate() {
-  // Source database (file)
-  const sourceDb = createDatabase({
-    storage: 'file',
-    file: { dataPath: './data-old' }
-  })
-  const SourceUser = sourceDb.model('User', userSchema)
-
-  // Target database (SQLite)
-  const targetDb = createDatabase({
-    storage: 'sqlite',
-    sqlite: { dataPath: './data-new' }
-  })
-  const TargetUser = targetDb.model('User', userSchema)
+  // Connect to destination
+  const destDb = connect({ storage: toStorage, path: './dest' })
+  const DestModel = destDb.model('User', userSchema)
 
   // Migrate data
-  const users = await SourceUser.find()
-  await TargetUser.insertMany(users)
-
-  console.log(`Migrated ${users.length} users`)
+  const documents = await SourceModel.find()
+  await DestModel.insertMany(documents)
 
   // Cleanup
   await sourceDb.disconnect()
-  await targetDb.disconnect()
+  await destDb.disconnect()
 }
-
-migrate()
 ```
 
 ---
 
 ## Custom Storage Strategies
 
-Implement your own storage backend.
+You can implement custom storage strategies by implementing the `StorageStrategy` interface.
 
 ### Create Custom Strategy
 
@@ -811,51 +466,27 @@ Implement your own storage backend.
 import { StorageStrategy } from 'memgoose'
 
 class RedisStorageStrategy<T> implements StorageStrategy<T> {
-  private client: RedisClient
-
   constructor(
-    private redisUrl: string,
-    private keyPrefix: string
+    private redis: Redis,
+    private key: string
   ) {}
 
   async initialize(): Promise<void> {
-    this.client = await createRedisClient(this.redisUrl)
+    // Initialize Redis connection
   }
 
   async getAll(): Promise<T[]> {
-    const keys = await this.client.keys(`${this.keyPrefix}:*`)
-    const values = await Promise.all(keys.map(key => this.client.get(key)))
-    return values.map(v => JSON.parse(v))
+    const data = await this.redis.get(this.key)
+    return data ? JSON.parse(data) : []
   }
 
   async insert(doc: T): Promise<void> {
-    const id = (doc as any)._id
-    await this.client.set(`${this.keyPrefix}:${id}`, JSON.stringify(doc))
+    const docs = await this.getAll()
+    docs.push(doc)
+    await this.redis.set(this.key, JSON.stringify(docs))
   }
 
-  async update(id: any, doc: T): Promise<void> {
-    await this.client.set(`${this.keyPrefix}:${id}`, JSON.stringify(doc))
-  }
-
-  async delete(id: any): Promise<void> {
-    await this.client.del(`${this.keyPrefix}:${id}`)
-  }
-
-  async deleteMany(ids: any[]): Promise<void> {
-    const keys = ids.map(id => `${this.keyPrefix}:${id}`)
-    await this.client.del(...keys)
-  }
-
-  async clear(): Promise<void> {
-    const keys = await this.client.keys(`${this.keyPrefix}:*`)
-    if (keys.length > 0) {
-      await this.client.del(...keys)
-    }
-  }
-
-  close(): void {
-    this.client.quit()
-  }
+  // ... implement other methods
 }
 ```
 
@@ -865,7 +496,6 @@ class RedisStorageStrategy<T> implements StorageStrategy<T> {
 import { Model } from 'memgoose'
 
 const storage = new RedisStorageStrategy<User>('redis://localhost:6379', 'users')
-
 const User = new Model(userSchema, undefined, storage)
 
 await User.create({ name: 'Alice' })
@@ -877,27 +507,25 @@ await User.create({ name: 'Alice' })
 
 ### Feature Matrix
 
-| Feature        | Memory    | File    | SQLite         | WiredTiger  |
-| -------------- | --------- | ------- | -------------- | ----------- |
-| Persistence    | ❌        | ✅      | ✅             | ✅          |
-| ACID           | ❌        | Partial | ✅             | ✅          |
-| Concurrency    | Good      | Fair    | Good           | Excellent   |
-| Performance    | Excellent | Good    | Very Good      | Excellent   |
-| Compression    | ❌        | ❌      | ❌             | ✅          |
-| Native Build   | ❌        | ❌      | ⚠️             | ✅          |
-| Dependencies   | None      | None    | better-sqlite3 | Build tools |
-| Human-Readable | N/A       | ✅      | ❌             | ❌          |
+| Feature        | Memory | File | SQLite         | WiredTiger          |
+| -------------- | ------ | ---- | -------------- | ------------------- |
+| Persistence    | ❌     | ✅   | ✅             | ✅                  |
+| ACID           | ❌     | ❌   | ✅             | ✅                  |
+| Compression    | ❌     | ❌   | ❌             | ✅                  |
+| Native Build   | ❌     | ❌   | ❌             | ✅                  |
+| Dependencies   | None   | None | better-sqlite3 | memgoose-wiredtiger |
+| Human-Readable | N/A    | ✅   | ❌             | ❌                  |
 
 ### Performance Comparison
 
 **Insert 10k documents (Apple M4 Max):**
 
-| Storage    | Time  |
-| ---------- | ----- |
-| Memory     | 28ms  |
-| WiredTiger | 66ms  |
-| SQLite     | 87ms  |
-| File       | 454ms |
+| Storage    | Time  | Throughput       |
+| ---------- | ----- | ---------------- |
+| Memory     | 28ms  | 366,667 docs/sec |
+| WiredTiger | 66ms  | 151,515 docs/sec |
+| SQLite     | 87ms  | 114,943 docs/sec |
+| File       | 454ms | 22,026 docs/sec  |
 
 **Indexed Query (1 of 100k):**
 
@@ -908,51 +536,35 @@ await User.create({ name: 'Alice' })
 | SQLite     | 0.23ms |
 | WiredTiger | 0.16ms |
 
-**Bulk Insert (100k documents):**
-
-| Storage    | Time  |
-| ---------- | ----- |
-| Memory     | 256ms |
-| WiredTiger | 501ms |
-| SQLite     | 759ms |
-
 ### When to Use Each
 
-**Memory:**
+**Memory Storage:**
 
-- ✅ Testing
-- ✅ Caching
-- ✅ Temporary data
-- ✅ Development
-- ❌ Production data
+- Testing and development
+- Temporary data
+- Maximum performance
+- No persistence needed
 
-**File:**
+**File Storage:**
 
-- ✅ Simple persistence
-- ✅ Small datasets
-- ✅ Configuration files
-- ✅ No dependencies
-- ❌ High concurrency
-- ❌ Large datasets
+- Simple applications
+- Human-readable data
+- Cross-platform compatibility
+- No ACID requirements
 
-**SQLite:**
+**SQLite Storage:**
 
-- ✅ Production applications
-- ✅ ACID requirements
-- ✅ SQL compatibility
-- ✅ Small to medium datasets
-- ❌ Very high write throughput
-- ❌ Distributed systems
+- Production applications
+- ACID compliance needed
+- Cross-platform deployment
+- Balanced performance
 
-**WiredTiger:**
+**WiredTiger Storage:**
 
-- ✅ Production applications
-- ✅ High write throughput
-- ✅ Large datasets
-- ✅ Concurrent access
-- ✅ Compression needed
-- ❌ Simple deployments
-- ❌ Limited build tools
+- High-performance applications
+- Large datasets
+- Enterprise requirements
+- Maximum persistent performance
 
 ### Decision Tree
 
@@ -960,27 +572,28 @@ await User.create({ name: 'Alice' })
 Need persistence?
 ├─ No  → Memory
 └─ Yes → ACID required?
-    ├─ No  → File
-    └─ Yes → High write throughput?
-        ├─ No  → SQLite
-        └─ Yes → WiredTiger
-```
+    ├─ No  → File (simple) or Memory (testing)
+    └─ Yes → Dataset size?
+        ├─ Small (<10k docs)    → SQLite
+        ├─ Medium (<100k docs)  → SQLite or WiredTiger
+        └─ Large (>100k docs)   → WiredTiger
 
----
+High write throughput?
+└─ Yes → WiredTiger
+
+Simple deployment?
+└─ Yes → SQLite or File
+```
 
 ## Best Practices
 
 ### 1. Choose the Right Storage
 
-Match storage to your requirements:
-
-- Testing → Memory
-- Simple apps → File or SQLite
-- Production → SQLite or WiredTiger
+- Start with Memory for development
+- Use SQLite for most production apps
+- Upgrade to WiredTiger for high performance
 
 ### 2. Always Disconnect
-
-Ensure clean shutdown:
 
 ```typescript
 process.on('SIGINT', async () => {
@@ -991,21 +604,20 @@ process.on('SIGINT', async () => {
 
 ### 3. Configure Cache Properly
 
-For WiredTiger:
-
 ```typescript
-wiredtiger: {
-  cacheSize: '1G' // Adjust based on available RAM
-}
+// WiredTiger cache sizing
+const db = connect({
+  storage: 'wiredtiger',
+  wiredtiger: { cacheSize: '1G' } // Adjust based on available RAM
+})
 ```
 
 ### 4. Use Indexes
 
-All storage backends benefit from indexes:
-
 ```typescript
+// Add indexes for frequently queried fields
 userSchema.index('email')
-userSchema.index(['city', 'age'])
+userSchema.index(['city', 'age']) // Compound index
 ```
 
 ### 5. Batch Operations
@@ -1025,17 +637,13 @@ for (const user of arrayOfUsers) {
 ### 6. Handle Errors
 
 ```typescript
-try {
-  await User.create({ email: 'duplicate@example.com' })
-} catch (err) {
-  console.error('Insert failed:', err.message)
-}
+// Use insertMany for bulk operations
+await User.insertMany(users) // Better than multiple create() calls
 ```
 
-### 7. Monitor Performance
+### 6. Monitor Performance
 
 ```typescript
-console.time('operation')
-await User.insertMany(largeArray)
-console.timeEnd('operation')
+// Use lean queries for better performance
+const users = await User.find({}, { lean: true })
 ```

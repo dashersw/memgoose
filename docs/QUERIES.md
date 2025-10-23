@@ -6,6 +6,12 @@ Complete guide to querying documents in memgoose.
 
 - [Basic Queries](#basic-queries)
 - [Query Operators](#query-operators)
+  - [Equality Operators](#equality-operators)
+  - [Array Operators](#array-operators)
+  - [Comparison Operators](#comparison-operators)
+  - [String Operators](#string-operators)
+  - [Field Existence Operators](#field-existence-operators)
+  - [Array Query Operators](#array-operators-1)
 - [Logical Operators](#logical-operators)
 - [Update Operators](#update-operators)
 - [Query Options](#query-options)
@@ -217,6 +223,157 @@ await User.find({
 await User.find({
   name: { $regex: /^(Alice|Bob|Charlie)/ }
 })
+```
+
+### Field Existence Operators
+
+#### `$exists` - Check Field Existence
+
+Tests whether a field exists in a document:
+
+```typescript
+// Find users with phone number
+await User.find({
+  phoneNumber: { $exists: true }
+})
+
+// Find users without optional field
+await User.find({
+  middleName: { $exists: false }
+})
+
+// Combine with other conditions
+await User.find({
+  email: { $exists: true },
+  emailVerified: true
+})
+```
+
+**Use Cases:**
+
+- Schema evolution (finding documents with/without new fields)
+- Optional fields handling
+- Data quality checks
+
+### Array Operators
+
+#### `$size` - Array Length Match
+
+Matches arrays with a specific number of elements:
+
+```typescript
+// Find users with exactly 3 tags
+await User.find({
+  tags: { $size: 3 }
+})
+
+// Find orders with no items (empty array)
+await Order.find({
+  items: { $size: 0 }
+})
+```
+
+**Note:** `$size` only accepts exact values, not ranges. For range queries on array length, use other methods:
+
+```typescript
+// For ranges, fetch and filter:
+const users = await User.find()
+const usersWithManyTags = users.filter(u => u.tags.length > 3)
+```
+
+#### `$all` - Array Contains All Elements
+
+Matches arrays that contain all specified elements (order doesn't matter):
+
+```typescript
+// Find users with all these tags (and possibly more)
+await User.find({
+  tags: { $all: ['javascript', 'typescript'] }
+})
+
+// Empty array matches all documents
+await User.find({
+  tags: { $all: [] }
+})
+
+// Combine with other operators
+await User.find({
+  tags: { $all: ['verified', 'active'] },
+  status: 'premium'
+})
+```
+
+**Difference from `$in`:**
+
+- `$all`: Array must contain ALL specified values
+- `$in`: Field must match ANY of the specified values
+
+```typescript
+// $all - both tags required
+await User.find({ tags: { $all: ['tag1', 'tag2'] } })
+// Matches: ['tag1', 'tag2', 'tag3'] ✅
+// Doesn't match: ['tag1', 'tag3'] ❌
+
+// $in - any tag matches
+await User.find({ status: { $in: ['active', 'pending'] } })
+// Matches: 'active' ✅ or 'pending' ✅
+```
+
+#### `$elemMatch` - Array Element Match
+
+Matches documents where at least one array element matches all specified conditions:
+
+```typescript
+interface User {
+  name: string
+  scores: Array<{ subject: string; score: number }>
+}
+
+// Find users with at least one math score above 90
+await User.find({
+  scores: {
+    $elemMatch: {
+      subject: 'math',
+      score: { $gte: 90 }
+    }
+  }
+})
+
+// Multiple conditions on array element
+await User.find({
+  scores: {
+    $elemMatch: {
+      score: { $gte: 80, $lte: 100 },
+      subject: { $in: ['math', 'physics'] }
+    }
+  }
+})
+```
+
+**Why use `$elemMatch`?**
+
+Without `$elemMatch`, conditions might match different array elements:
+
+```typescript
+// WITHOUT $elemMatch - conditions can match different elements
+await User.find({
+  'scores.subject': 'math',
+  'scores.score': { $gte: 90 }
+})
+// Matches user with: [{ subject: 'math', score: 50 }, { subject: 'english', score: 95 }]
+// ❌ Different elements satisfy the conditions!
+
+// WITH $elemMatch - all conditions must match same element
+await User.find({
+  scores: {
+    $elemMatch: {
+      subject: 'math',
+      score: { $gte: 90 }
+    }
+  }
+})
+// Only matches if SAME element has subject='math' AND score>=90
+// ✅ Ensures conditions match the same array element
 ```
 
 ### Complex Queries
