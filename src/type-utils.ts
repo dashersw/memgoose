@@ -1,4 +1,4 @@
-type FunctionLike = (...args: any[]) => unknown
+type FunctionLike = (...args: unknown[]) => unknown
 
 type FunctionKeys<T> = {
   [K in keyof T]-?: Extract<T[K], FunctionLike> extends never ? never : K

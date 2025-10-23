@@ -200,6 +200,7 @@ test('ObjectId', async t => {
     const User = model('UserObjectIdJSON', userSchema)
     const user = await User.create({ name: 'Alice', age: 25 })
 
+    assert.ok(user.toJSON)
     const json = user.toJSON()
 
     assert.ok(json._id)

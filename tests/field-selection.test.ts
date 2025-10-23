@@ -144,7 +144,7 @@ test('Field Selection', async t => {
     }, /Cannot mix inclusion and exclusion/)
   })
 
-  await t.test('should return empty object when no fields match inclusion', async () => {
+  await t.test('should return only _id when no other fields match inclusion', async () => {
     const User = model('User', new Schema<TestUser>({}))
     await User.insertMany([
       { name: 'Alice', age: 25, email: 'alice@example.com', password: 'secret123', city: 'NYC' }
@@ -153,7 +153,9 @@ test('Field Selection', async t => {
     const result = await User.findOne({ name: 'Alice' }, { select: { nonexistent: 1 } as any })
 
     assert.ok(result)
-    assert.strictEqual(Object.keys(result).length, 0)
+    // MongoDB behavior: _id is always included unless explicitly excluded
+    assert.strictEqual(Object.keys(result).length, 1)
+    assert.ok(result._id)
   })
 
   await t.test('should handle empty select object', async () => {
@@ -191,5 +193,77 @@ test('Field Selection', async t => {
     assert.strictEqual(result.city, 'NYC')
     assert.strictEqual(result.age, undefined)
     assert.strictEqual(result.email, undefined)
+  })
+
+  await t.test('should select fields using string notation on findOne()', async () => {
+    const User = model('User', new Schema<TestUser>({}))
+    await User.insertMany([
+      { name: 'Alice', age: 25, email: 'alice@example.com', password: 'secret123', city: 'NYC' }
+    ])
+
+    const result = await User.findOne({ name: 'Alice' }).select('name email city')
+
+    assert.ok(result)
+    assert.strictEqual(result.name, 'Alice')
+    assert.strictEqual(result.email, 'alice@example.com')
+    assert.strictEqual(result.city, 'NYC')
+    assert.strictEqual(result.age, undefined)
+    assert.strictEqual(result.password, undefined)
+  })
+
+  await t.test('should exclude fields using string notation with minus on findOne()', async () => {
+    const User = model('User', new Schema<TestUser>({}))
+    await User.insertMany([
+      { name: 'Alice', age: 25, email: 'alice@example.com', password: 'secret123', city: 'NYC' }
+    ])
+
+    const result = await User.findOne({ name: 'Alice' }).select('-password -email')
+
+    assert.ok(result)
+    assert.strictEqual(result.name, 'Alice')
+    assert.strictEqual(result.age, 25)
+    assert.strictEqual(result.city, 'NYC')
+    assert.strictEqual(result.password, undefined)
+    assert.strictEqual(result.email, undefined)
+  })
+
+  await t.test('should select fields using string notation on findById()', async () => {
+    const User = model('User', new Schema<TestUser>({}))
+    const user = await User.create({
+      name: 'Alice',
+      age: 25,
+      email: 'alice@example.com',
+      password: 'secret123',
+      city: 'NYC'
+    })
+
+    const result = await User.findById(user._id).select('name age')
+
+    assert.ok(result)
+    assert.strictEqual(result.name, 'Alice')
+    assert.strictEqual(result.age, 25)
+    assert.strictEqual(result.email, undefined)
+    assert.strictEqual(result.password, undefined)
+    assert.strictEqual(result.city, undefined)
+  })
+
+  await t.test('should exclude fields using string notation with minus on findById()', async () => {
+    const User = model('User', new Schema<TestUser>({}))
+    const user = await User.create({
+      name: 'Bob',
+      age: 30,
+      email: 'bob@example.com',
+      password: 'pass456',
+      city: 'LA'
+    })
+
+    const result = await User.findById(user._id).select('-password -city')
+
+    assert.ok(result)
+    assert.strictEqual(result.name, 'Bob')
+    assert.strictEqual(result.age, 30)
+    assert.strictEqual(result.email, 'bob@example.com')
+    assert.strictEqual(result.password, undefined)
+    assert.strictEqual(result.city, undefined)
   })
 })

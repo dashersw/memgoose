@@ -213,6 +213,80 @@ userSchema.statics.findByEmail = function (email: string) {
 const user = await User.findByEmail('alice@example.com')
 ```
 
+#### `schema.loadClass(classConstructor)`
+
+Load methods, statics, and virtuals from an ES6 class into the schema. Instance methods are added to `schema.methods`, static methods are added to `schema.statics`, and **getters/setters are converted to virtuals**.
+
+**Parameters:**
+
+- `classConstructor`: `new (...args: any[]) => any` - Class constructor to load methods from
+
+**Returns:** `this` (chainable)
+
+**Example:**
+
+```typescript
+class UserClass {
+  firstName!: string
+  lastName!: string
+  age!: number
+
+  // Getter becomes a virtual
+  get fullName(): string {
+    return `${this.firstName} ${this.lastName}`
+  }
+
+  // Setter becomes a virtual setter
+  set fullName(value: string) {
+    const parts = value.split(' ')
+    this.firstName = parts[0]
+    this.lastName = parts.slice(1).join(' ') || ''
+  }
+
+  // Instance method
+  isAdult(): boolean {
+    return this.age >= 18
+  }
+
+  // Static method
+  static async findByEmail(this: any, email: string) {
+    return this.findOne({ email })
+  }
+}
+
+const userSchema = new Schema<User>({
+  firstName: String,
+  lastName: String,
+  age: Number
+})
+
+// Load all methods, statics, getters, and setters from the class
+userSchema.loadClass(UserClass)
+
+const User = model('User', userSchema)
+
+// Use getters/setters (virtuals)
+const user = await User.findOne({ firstName: 'Alice' })
+console.log(user.fullName) // 'Alice Smith' (getter)
+user.fullName = 'Alice Johnson' // setter
+console.log(user.firstName) // 'Alice'
+console.log(user.lastName) // 'Johnson'
+
+// Use instance and static methods
+console.log(user.isAdult()) // Instance method
+const foundUser = await User.findByEmail('alice@example.com') // Static method
+```
+
+**Notes:**
+
+- Instance methods from the class prototype are added to `schema.methods`
+- Static methods are added to `schema.statics`
+- **Getters and setters are automatically converted to virtuals**
+- The constructor is ignored
+- Supports class inheritance - child class methods/getters/setters take precedence
+- `super` calls in getters/setters work as expected
+- Supports method chaining
+
 ---
 
 ## Model
@@ -380,6 +454,67 @@ const ages = await User.distinct('age')
 // Get unique cities for active users
 const cities = await User.distinct('city', { status: 'active' })
 ```
+
+#### `async aggregate(pipeline)`
+
+Executes an aggregation pipeline on the collection.
+
+**Parameters:**
+
+- `pipeline`: `AggregationPipeline<T>` - Array of aggregation stages
+
+**Returns:** `Promise<any[]>` - Aggregation results
+
+**Examples:**
+
+```typescript
+// Group and count by category
+const results = await Product.aggregate([
+  { $match: { inStock: true } },
+  {
+    $group: {
+      _id: '$category',
+      count: { $sum: 1 },
+      avgPrice: { $avg: '$price' }
+    }
+  },
+  { $sort: { count: -1 } }
+])
+
+// Complex analytics pipeline
+const analytics = await Sale.aggregate([
+  { $match: { date: { $gte: startDate } } },
+  {
+    $addFields: {
+      revenue: { $multiply: ['$price', '$quantity'] }
+    }
+  },
+  {
+    $group: {
+      _id: '$region',
+      totalRevenue: { $sum: '$revenue' },
+      salesCount: { $sum: 1 }
+    }
+  },
+  { $sort: { totalRevenue: -1 } },
+  { $limit: 10 }
+])
+
+// Join collections with $lookup
+const postsWithAuthors = await Post.aggregate([
+  {
+    $lookup: {
+      from: 'Author',
+      localField: 'authorId',
+      foreignField: '_id',
+      as: 'author'
+    }
+  },
+  { $unwind: '$author' }
+])
+```
+
+**See Also:** [Aggregation Guide](AGGREGATION.md) for comprehensive documentation.
 
 ### Mutation Methods
 

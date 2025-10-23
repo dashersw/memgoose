@@ -2,7 +2,7 @@
 export type QueryMatcher<T> = (doc: T) => boolean
 
 // Storage Strategy Interface - enables pluggable storage backends
-export interface StorageStrategy<T extends Record<string, any>> {
+export interface StorageStrategy<T extends object = Record<string, unknown>> {
   // Initialize the storage (load from disk, connect to DB, etc.)
   initialize(): Promise<void>
 
@@ -40,7 +40,7 @@ export interface StorageStrategy<T extends Record<string, any>> {
     matcher: QueryMatcher<T>,
     indexHint?: {
       fields: Array<keyof T>
-      values: Record<string, any>
+      values: Record<string, unknown>
     }
   ): T[]
 }

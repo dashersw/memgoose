@@ -14,9 +14,9 @@ test('Partial Index Matching', async t => {
     // Query with name + age - should use name index then filter
     let findCallCount = 0
     const originalFind = Array.prototype.find
-    Array.prototype.find = function (...args) {
+    Array.prototype.find = function (...args: any[]) {
       findCallCount++
-      return originalFind.apply(this, args)
+      return (originalFind as any).apply(this, args)
     }
 
     const result = await User.findOne({ name: 'Bob', age: 32 })
@@ -38,9 +38,9 @@ test('Partial Index Matching', async t => {
 
     let filterCallCount = 0
     const originalFilter = Array.prototype.filter
-    Array.prototype.filter = function (...args) {
+    Array.prototype.filter = function (...args: any[]) {
       filterCallCount++
-      return originalFilter.apply(this, args)
+      return (originalFilter as any).apply(this, args)
     }
 
     // Query city + age - should use city index then filter
@@ -65,9 +65,9 @@ test('Partial Index Matching', async t => {
     // Query with name + age should use compound index (exact match)
     let findCallCount = 0
     const originalFind = Array.prototype.find
-    Array.prototype.find = function (...args) {
+    Array.prototype.find = function (...args: any[]) {
       findCallCount++
-      return originalFind.apply(this, args)
+      return (originalFind as any).apply(this, args)
     }
 
     const result = await User.findOne({ name: 'Bob', age: 32 })
@@ -100,9 +100,9 @@ test('Partial Index Matching', async t => {
 
     let filterCallCount = 0
     const originalFilter = Array.prototype.filter
-    Array.prototype.filter = function (...args) {
+    Array.prototype.filter = function (...args: any[]) {
       filterCallCount++
-      return originalFilter.apply(this, args)
+      return (originalFilter as any).apply(this, args)
     }
 
     // name has operator - can't use the index

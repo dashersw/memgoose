@@ -2,7 +2,14 @@ import { Schema, model } from '../index'
 
 // Example demonstrating mongoose-like exec() functionality
 
-const userSchema = new Schema({
+// Define the interface for type-safe autocomplete
+interface IUser {
+  name: string
+  email: string
+  age: number
+}
+
+const userSchema = new Schema<IUser>({
   name: String,
   email: String,
   age: Number
@@ -11,7 +18,7 @@ const userSchema = new Schema({
 // Add a virtual for demonstration
 userSchema.virtual('info').get(doc => `${doc.name} (${doc.age})`)
 
-const User = model('User', userSchema)
+const User = model<IUser>('User', userSchema)
 
 async function demo() {
   console.log('=== Mongoose-like exec() Demo ===\n')
@@ -62,7 +69,7 @@ async function demo() {
 
   // 5. updateOne() with exec()
   console.log('5. updateOne() with exec():')
-  const updateResult = await User.updateOne({ name: 'Alice' }, { $inc: { age: 1 } }).exec()
+  const updateResult = await User.updateOne({}, { $inc: { age: 1 } }).exec()
   console.log('Modified count:', updateResult.modifiedCount)
   console.log()
 

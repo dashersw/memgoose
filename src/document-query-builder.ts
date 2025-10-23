@@ -10,9 +10,24 @@ export type QueryOptions<T = any> = {
   lean?: boolean
 }
 
-export type Query<T extends Record<string, any> = Record<string, any>> = {
-  [K in QueryableKeys<T>]?: any
+// Populate options for advanced population
+export type PopulateOptions = {
+  path: string
+  select?: string | string[] | Record<string, 0 | 1>
+  match?: Record<string, any> // Query filter for populated documents
+  populate?: PopulateOptions | PopulateOptions[]
+  model?: string
 }
+
+type LogicalQueryOperators<T extends object> = {
+  $or?: Query<T>[]
+  $and?: Query<T>[]
+  $nor?: Query<T>[]
+}
+
+export type Query<T extends object = Record<string, unknown>> = {
+  [K in QueryableKeys<T>]?: any
+} & LogicalQueryOperators<T>
 
 // Import Document type for proper typing
 import type { Document } from './document'
@@ -21,12 +36,12 @@ import type { Document } from './document'
 // Adds select(), lean(), populate() to base QueryBuilder
 // TResult is the final result type (T | null for single docs, T[] for arrays)
 export class DocumentQueryBuilder<
-  T extends Record<string, any>,
+  T extends object = Record<string, unknown>,
   TResult = (T & Document) | null
 > extends QueryBuilder<TResult> {
   protected _select?: Partial<Record<keyof T, 0 | 1>>
   protected _lean?: boolean
-  protected _populate?: string[]
+  protected _populate?: string[] | PopulateOptions | PopulateOptions[]
   protected _model: any
   protected _executeInternal: (options?: QueryOptions<T>) => Promise<TResult>
 
@@ -66,11 +81,38 @@ export class DocumentQueryBuilder<
     return this
   }
 
-  populate<TPopulated extends Record<string, any> = T>(
-    field: string | string[]
+  populate<TPopulated extends object = T>(
+    field: string | string[] | PopulateOptions
   ): DocumentQueryBuilder<TPopulated, TResult> {
-    const fields = Array.isArray(field) ? field : [field]
-    this._populate = [...(this._populate || []), ...fields]
+    // Handle different input formats
+    if (!this._populate || Array.isArray(this._populate)) {
+      // Currently an array or undefined, need to append
+      const existing = (this._populate || []) as string[]
+      if (typeof field === 'string') {
+        this._populate = [...existing, field] as string[]
+      } else if (Array.isArray(field)) {
+        this._populate = [...existing, ...field] as string[]
+      } else {
+        // PopulateOptions object - convert existing array to options and add new one
+        if (existing.length === 0) {
+          this._populate = field
+        } else {
+          this._populate = [...existing.map(path => ({ path })), field] as PopulateOptions[]
+        }
+      }
+    } else {
+      // Currently a PopulateOptions or array of PopulateOptions
+      const current = this._populate as PopulateOptions | PopulateOptions[]
+      const currentArray = Array.isArray(current) ? current : [current]
+
+      if (typeof field === 'string') {
+        this._populate = [...currentArray, { path: field }] as PopulateOptions[]
+      } else if (Array.isArray(field)) {
+        this._populate = [...currentArray, ...field.map(path => ({ path }))] as PopulateOptions[]
+      } else {
+        this._populate = [...currentArray, field] as PopulateOptions[]
+      }
+    }
     return this as any
   }
 
@@ -92,9 +134,12 @@ export class DocumentQueryBuilder<
       let doc = result as T
 
       // Apply populate if specified (model handled virtuals and selection)
-      if (this._populate && this._populate.length > 0) {
-        const results = await this._model._applyPopulate([doc], this._populate)
-        doc = results[0] || null
+      if (this._populate) {
+        const hasPopulate = Array.isArray(this._populate) ? this._populate.length > 0 : true // Single PopulateOptions object
+        if (hasPopulate) {
+          const results = await this._model._applyPopulate([doc], this._populate)
+          doc = results[0] || null
+        }
       }
 
       return doc as unknown as TResult

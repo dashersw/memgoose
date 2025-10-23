@@ -3,6 +3,7 @@ export interface TestUser {
   name: string
   age: number
   city: string
+  [key: string]: unknown
 }
 
 export const testUsers: TestUser[] = [

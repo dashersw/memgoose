@@ -6,6 +6,7 @@ Complete guide to querying documents in memgoose.
 
 - [Basic Queries](#basic-queries)
 - [Query Operators](#query-operators)
+- [Logical Operators](#logical-operators)
 - [Update Operators](#update-operators)
 - [Query Options](#query-options)
 - [Query Chaining](#query-chaining)
@@ -245,6 +246,192 @@ await User.find({
   email: { $regex: /@(gmail|yahoo)\.com$/ },
   age: { $gte: 18 },
   status: { $nin: ['deleted', 'suspended'] }
+})
+```
+
+---
+
+## Logical Operators
+
+Logical operators allow you to combine multiple query conditions with boolean logic.
+
+### `$or` - Match Any Condition
+
+Returns documents that match **at least one** of the conditions.
+
+```typescript
+// Find users who are either under 18 OR have premium status
+await User.find({
+  $or: [{ age: { $lt: 18 } }, { status: 'premium' }]
+})
+
+// Multiple OR conditions
+await Product.find({
+  $or: [{ price: { $lt: 10 } }, { onSale: true }, { category: 'clearance' }]
+})
+```
+
+**Use Cases:**
+
+- Multiple alternative filters
+- "Either/or" queries
+- Complex filtering logic
+
+### `$and` - Match All Conditions
+
+Returns documents that match **all** of the conditions. Useful for queries that can't be expressed with implicit AND.
+
+```typescript
+// Explicit AND (useful for same field with different operators)
+await User.find({
+  $and: [{ age: { $gte: 18 } }, { age: { $lte: 65 } }]
+})
+
+// Multiple conditions
+await Product.find({
+  $and: [{ price: { $gte: 100 } }, { inStock: true }, { rating: { $gte: 4.0 } }]
+})
+```
+
+**Note:** Most queries use implicit AND, so explicit `$and` is only needed for:
+
+- Multiple operators on the same field
+- Complex nested logical conditions
+- Clarity in complex queries
+
+### `$nor` - Match None of the Conditions
+
+Returns documents that **fail all** of the conditions (opposite of `$or`).
+
+```typescript
+// Find users who are NOT (young OR inactive)
+await User.find({
+  $nor: [{ age: { $lt: 18 } }, { status: 'inactive' }]
+})
+
+// Exclude multiple categories
+await Product.find({
+  $nor: [{ category: 'discontinued' }, { category: 'recalled' }, { price: 0 }]
+})
+```
+
+**Use Cases:**
+
+- Exclusion filters
+- "Neither/nor" queries
+- Blacklist patterns
+
+### `$not` - Negate Operator
+
+Negates the effect of a query operator on a specific field.
+
+```typescript
+// Find users whose age is NOT greater than or equal to 30
+await User.find({
+  age: { $not: { $gte: 30 } }
+})
+// Equivalent to: { age: { $lt: 30 } }
+
+// Negate $in operator
+await User.find({
+  status: { $not: { $in: ['deleted', 'banned', 'suspended'] } }
+})
+
+// Negate regex
+await User.find({
+  email: { $not: { $regex: '@temporary\\.com$' } }
+})
+
+// Negate $exists
+await User.find({
+  optionalField: { $not: { $exists: true } }
+})
+```
+
+**Use Cases:**
+
+- Inverting complex operators
+- Simplifying negation logic
+- Readable query expressions
+
+### Combining Logical Operators
+
+Logical operators can be nested for complex queries.
+
+```typescript
+// Complex nested logic
+await User.find({
+  $and: [
+    { age: { $gte: 18 } },
+    {
+      $or: [{ city: 'NYC' }, { city: 'LA' }, { status: 'premium' }]
+    },
+    {
+      $nor: [{ banned: true }, { suspended: true }]
+    }
+  ]
+})
+
+// Nested OR within OR
+await Product.find({
+  $or: [
+    {
+      $or: [{ category: 'electronics' }, { category: 'gadgets' }]
+    },
+    { featured: true }
+  ]
+})
+```
+
+### Real-World Examples
+
+**Access Control:**
+
+```typescript
+// Find posts user can view: owned by user OR public
+await Post.find({
+  $or: [{ authorId: currentUserId }, { visibility: 'public' }]
+})
+```
+
+**Content Filtering:**
+
+```typescript
+// Active content not in draft or deleted state
+await Article.find({
+  $and: [
+    { status: 'active' },
+    {
+      $nor: [{ draft: true }, { deleted: true }]
+    }
+  ]
+})
+```
+
+**Complex Search:**
+
+```typescript
+// Search across multiple fields with different criteria
+await Product.find({
+  $or: [
+    { name: { $regex: searchTerm, $options: 'i' } },
+    { description: { $regex: searchTerm, $options: 'i' } },
+    { tags: { $in: [searchTerm] } }
+  ],
+  $and: [{ inStock: true }, { price: { $gte: minPrice, $lte: maxPrice } }]
+})
+```
+
+**Age Range with Exclusions:**
+
+```typescript
+// Adults (18-65) who are not in restricted list
+await User.find({
+  $and: [
+    { age: { $gte: 18 } },
+    { age: { $lte: 65 } },
+    { userId: { $not: { $in: restrictedUserIds } } }
+  ]
 })
 ```
 

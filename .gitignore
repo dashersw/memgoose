@@ -148,3 +148,6 @@ build/
 
 # WiredTiger lib (downloaded)
 lib/lib/
+
+# SQLite database path
+:memory:

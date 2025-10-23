@@ -67,7 +67,7 @@ type QueryIndexMetadata<T> = {
 }
 
 // File-based storage strategy with NDJSON + WAL for efficient updates
-export class FileStorageStrategy<T extends Record<string, any>> implements StorageStrategy<T> {
+export class FileStorageStrategy<T extends object> implements StorageStrategy<T> {
   private _data: T[] = []
   private _dataPath: string
   private _modelName: string
@@ -113,7 +113,8 @@ export class FileStorageStrategy<T extends Record<string, any>> implements Stora
 
     // Function to extract document ID (assumes _id field)
     this._getDocId = (doc: T) => {
-      if (doc._id) return String(doc._id)
+      const docRecord = doc as Record<string, unknown>
+      if (docRecord._id) return String(docRecord._id)
       // Fallback: use entire document as key (not ideal, but works)
       return JSON.stringify(doc)
     }
@@ -166,10 +167,11 @@ export class FileStorageStrategy<T extends Record<string, any>> implements Stora
           })
         }
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       // Index doesn't exist or is corrupted - will rebuild from data file
-      if (error.code !== 'ENOENT') {
-        console.warn(`Warning: Could not load index ${this._indexFilePath}:`, error.message)
+      const err = error as { code?: string; message?: string }
+      if (err.code !== 'ENOENT') {
+        console.warn(`Warning: Could not load index ${this._indexFilePath}:`, err.message)
       }
 
       // Try to rebuild from data file
@@ -196,9 +198,10 @@ export class FileStorageStrategy<T extends Record<string, any>> implements Stora
 
         offset += length + 1 // +1 for newline
       }
-    } catch (error: any) {
-      if (error.code !== 'ENOENT') {
-        console.warn(`Warning: Could not rebuild from ${this._dataFilePath}:`, error.message)
+    } catch (error: unknown) {
+      const err = error as { code?: string; message?: string }
+      if (err.code !== 'ENOENT') {
+        console.warn(`Warning: Could not rebuild from ${this._dataFilePath}:`, err.message || '')
       }
       // No data file yet - start fresh
     }
@@ -227,9 +230,10 @@ export class FileStorageStrategy<T extends Record<string, any>> implements Stora
       }
       // Update WAL offset to end of file
       this._walOffset = offset
-    } catch (error: any) {
-      if (error.code !== 'ENOENT') {
-        console.warn(`Warning: Could not load WAL ${this._walFilePath}:`, error.message)
+    } catch (error: unknown) {
+      const err = error as { code?: string; message?: string }
+      if (err.code !== 'ENOENT') {
+        console.warn(`Warning: Could not load WAL ${this._walFilePath}:`, err.message || '')
       }
       // No WAL file yet - that's fine
       this._walOffset = 0
@@ -659,7 +663,7 @@ export class FileStorageStrategy<T extends Record<string, any>> implements Stora
     matcher: QueryMatcher<T>,
     indexHint?: {
       fields: Array<keyof T>
-      values: Record<string, any>
+      values: Record<string, unknown>
     }
   ): T[] {
     // If no index hint, use linear scan

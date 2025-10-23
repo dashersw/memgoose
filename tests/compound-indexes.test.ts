@@ -24,9 +24,9 @@ test('Compound Indexes', async t => {
     // Spy on Array.prototype.find to verify index is used
     let findCallCount = 0
     const originalFind = Array.prototype.find
-    Array.prototype.find = function (...args) {
+    Array.prototype.find = function (...args: any[]) {
       findCallCount++
-      return originalFind.apply(this, args)
+      return (originalFind as any).apply(this, args)
     }
 
     const result = await User.findOne({ city: 'New York', age: 25 })

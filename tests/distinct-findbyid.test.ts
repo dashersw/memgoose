@@ -103,9 +103,9 @@ test('Distinct and FindById', async t => {
 
     let findCallCount = 0
     const originalFind = Array.prototype.find
-    Array.prototype.find = function (...args) {
+    Array.prototype.find = function (...args: any[]) {
       findCallCount++
-      return originalFind.apply(this, args)
+      return (originalFind as any).apply(this, args)
     }
 
     const result = await User.findById('2')

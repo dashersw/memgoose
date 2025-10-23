@@ -58,7 +58,7 @@ export function createDatabase(config: DatabaseConfig = {}): Database {
  * const User = model('User', userSchema)
  * ```
  */
-export function model<T extends Record<string, any>>(name: string, schema: Schema<T>): Model<T> {
+export function model<T extends object>(name: string, schema: Schema<T>): Model<T> {
   return defaultDatabase.model(name, schema)
 }
 
@@ -67,7 +67,9 @@ export function model<T extends Record<string, any>>(name: string, schema: Schem
  * @param name Model name
  * @returns Model instance or undefined
  */
-export function getModel(name: string): Model<any> | undefined {
+export function getModel<T extends object = Record<string, unknown>>(
+  name: string
+): Model<T> | undefined {
   return defaultDatabase.getModel(name)
 }
 

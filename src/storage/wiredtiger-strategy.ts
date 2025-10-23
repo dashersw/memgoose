@@ -32,9 +32,7 @@ type QueryIndexMetadata<T> = {
 // WiredTiger storage strategy with efficient indexing
 // Uses WiredTiger's high-performance B-tree storage engine with ACID transactions
 // and crash recovery through write-ahead logging (WAL).
-export class WiredTigerStorageStrategy<T extends Record<string, any>>
-  implements StorageStrategy<T>
-{
+export class WiredTigerStorageStrategy<T extends object> implements StorageStrategy<T> {
   private _data: T[] = []
   private _connection: WiredTigerConnection | null = null
   private _session: WiredTigerSession | null = null
@@ -54,7 +52,7 @@ export class WiredTigerStorageStrategy<T extends Record<string, any>>
   }> = []
 
   private _computeIndexKey(doc: Partial<T>, fields: Array<keyof T>): string | null {
-    const record = doc as Record<string, any>
+    const record = doc as Record<string, unknown>
     const values: Array<unknown> = []
 
     for (const field of fields) {
@@ -77,8 +75,9 @@ export class WiredTigerStorageStrategy<T extends Record<string, any>>
 
     // Function to extract document ID (assumes _id field)
     this._getDocId = (doc: T) => {
-      if (doc._id) {
-        const id = doc._id
+      const docRecord = doc as Record<string, unknown>
+      if (docRecord._id) {
+        const id = docRecord._id
         // Handle ObjectId and other objects
         if (typeof id === 'object' && id !== null) {
           return String(id)
@@ -312,7 +311,7 @@ export class WiredTigerStorageStrategy<T extends Record<string, any>>
     // Check unique constraints before updating (excluding the old doc)
     this.checkUniqueConstraints(newDoc, oldDoc)
 
-    const previousValues = { ...(oldDoc as Record<string, any>) } as Partial<T>
+    const previousValues = { ...(oldDoc as Record<string, unknown>) } as Partial<T>
 
     // Update in-memory array (oldDoc is already a reference in _data)
     Object.assign(oldDoc, newDoc)
@@ -560,7 +559,7 @@ export class WiredTigerStorageStrategy<T extends Record<string, any>>
     matcher: QueryMatcher<T>,
     indexHint?: {
       fields: Array<keyof T>
-      values: Record<string, any>
+      values: Record<string, unknown>
     }
   ): T[] {
     // If no index hint, use in-memory linear scan

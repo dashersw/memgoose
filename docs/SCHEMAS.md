@@ -15,6 +15,10 @@ Complete guide to defining schemas in memgoose.
 - [Subdocuments](#subdocuments)
 - [Schema Options](#schema-options)
 - [Methods and Statics](#methods-and-statics)
+  - [Instance Methods](#instance-methods)
+  - [Static Methods](#static-methods)
+  - [Loading Methods from a Class](#loading-methods-from-a-class)
+  - [Type-Safe Methods (TypeScript)](#type-safe-methods-typescript)
 
 ---
 
@@ -572,6 +576,68 @@ schema2.index('username', { unique: true })
 schema.index(['email', 'provider'], { unique: true })
 ```
 
+### TTL Indexes
+
+TTL (Time To Live) indexes automatically delete documents after a specified time period.
+
+```typescript
+// Session management - expire after 30 minutes
+const sessionSchema = new Schema({
+  sessionId: String,
+  createdAt: Date,
+  data: String
+})
+
+sessionSchema.index('createdAt', { ttl: 1800 }) // 1800 seconds = 30 minutes
+
+const Session = model('Session', sessionSchema)
+
+// Sessions automatically deleted 30 minutes after createdAt
+await Session.create({
+  sessionId: 'abc123',
+  createdAt: new Date(),
+  data: '{ ... }'
+})
+// Will be automatically deleted 30 minutes later
+```
+
+**How TTL Works:**
+
+- Background process checks for expired documents every 60 seconds (default)
+- Deletes documents where `field < (current time - ttl seconds)`
+- Only works with single-field indexes (not compound)
+- Field must contain a Date value
+
+**Multiple TTL Indexes:**
+
+```typescript
+const cacheSchema = new Schema({
+  key: String,
+  value: String,
+  accessedAt: Date,
+  createdAt: Date
+})
+
+// Different TTLs for different use cases
+cacheSchema.index('accessedAt', { ttl: 300 }) // 5 minutes after last access
+cacheSchema.index('createdAt', { ttl: 3600 }) // 1 hour absolute
+```
+
+**Common Use Cases:**
+
+- Session management (expire inactive sessions)
+- Cache invalidation (auto-delete old cache entries)
+- Temporary data (verification tokens, password resets)
+- Log rotation (auto-delete old logs)
+- Rate limiting (auto-reset counters)
+
+**Important Notes:**
+
+- TTL cleanup happens in the background (not immediate)
+- Documents without the TTL field are never deleted
+- TTL intervals are cleaned up on `disconnect()`
+- Works across all storage backends
+
 ### Programmatic Index Creation
 
 ```typescript
@@ -905,6 +971,155 @@ const User = model('User', userSchema)
 // Use static methods
 const user = await User.findByEmail('alice@example.com')
 const adults = await User.findAdults()
+```
+
+### Loading Methods from a Class
+
+Instead of manually defining methods and statics, you can load them from an ES6 class using `loadClass()`. This provides a more organized, class-based approach similar to Mongoose. **Getters and setters are automatically converted to virtuals!**
+
+```typescript
+interface User {
+  firstName: string
+  lastName: string
+  age: number
+  email: string
+}
+
+class UserClass {
+  // TypeScript field declarations (not actual properties)
+  firstName!: string
+  lastName!: string
+  age!: number
+  email!: string
+
+  // Getter becomes a virtual
+  get fullName(): string {
+    return `${this.firstName} ${this.lastName}`
+  }
+
+  // Setter becomes a virtual setter
+  set fullName(value: string) {
+    const parts = value.split(' ')
+    this.firstName = parts[0]
+    this.lastName = parts.slice(1).join(' ') || ''
+  }
+
+  // Instance method
+  getFullName(): string {
+    return `${this.firstName} ${this.lastName}`
+  }
+
+  greet(greeting: string): string {
+    return `${greeting}, ${this.firstName}!`
+  }
+
+  isAdult(): boolean {
+    return this.age >= 18
+  }
+
+  // Static methods
+  static async findByEmail(this: any, email: string) {
+    return this.findOne({ email })
+  }
+
+  static async findAdults(this: any) {
+    return this.find({ age: { $gte: 18 } })
+  }
+}
+
+const userSchema = new Schema<User>({
+  firstName: String,
+  lastName: String,
+  age: Number,
+  email: String
+})
+
+// Load all methods, statics, getters, and setters from the class
+userSchema.loadClass(UserClass)
+
+const User = model('User', userSchema)
+
+// Use getters (virtuals)
+const user = await User.findOne({ firstName: 'Alice' })
+console.log(user.fullName) // 'Alice Smith' (uses getter)
+
+// Use setters (virtuals)
+user.fullName = 'Alice Johnson'
+console.log(user.firstName) // 'Alice'
+console.log(user.lastName) // 'Johnson'
+
+// Use instance methods
+console.log(user.getFullName()) // 'Alice Johnson'
+console.log(user.greet('Hello')) // 'Hello, Alice!'
+
+// Use static methods
+const adult = await User.findByEmail('alice@example.com')
+const adults = await User.findAdults()
+```
+
+**Inheritance Support:**
+
+`loadClass()` fully supports class inheritance with `super` calls:
+
+```typescript
+class HumanClass {
+  get fullName(): string {
+    return 'My name'
+  }
+}
+
+class PersonClass extends HumanClass {
+  firstName!: string
+  lastName!: string
+
+  // Override parent getter - super works!
+  get fullName(): string {
+    return `${super.fullName} is ${this.firstName} ${this.lastName}`
+  }
+
+  set fullName(v: string) {
+    const firstSpace = v.indexOf(' ')
+    this.firstName = v.split(' ')[0]
+    this.lastName = firstSpace === -1 ? '' : v.substring(firstSpace + 1)
+  }
+}
+
+const personSchema = new Schema<PersonDoc>({
+  firstName: String,
+  lastName: String
+})
+
+personSchema.loadClass(PersonClass)
+const Person = model('Person', personSchema)
+
+const doc = await Person.create({ firstName: 'Jon', lastName: 'Snow' })
+console.log(doc.fullName) // 'My name is Jon Snow'
+
+doc.fullName = 'Jon Stark'
+console.log(doc.firstName) // 'Jon'
+console.log(doc.lastName) // 'Stark'
+```
+
+**Important Notes:**
+
+- `loadClass()` automatically extracts all non-constructor methods from the class prototype and adds them as instance methods
+- Static methods from the class are added as static methods on the schema
+- **Getters and setters are automatically converted to virtuals**
+- The constructor is ignored - only methods, getters, and setters are copied
+- Supports class inheritance - child class methods/getters/setters take precedence over parent ones
+- `super` calls in getters/setters work as expected
+- `loadClass()` supports method chaining
+
+```typescript
+const userSchema = new Schema<User>({
+  /* ... */
+})
+  .loadClass(UserClass)
+  .index('email')
+  .virtual('displayName')
+  .get(function () {
+    return this.firstName
+  })
 ```
 
 ### Type-Safe Methods (TypeScript)

@@ -87,7 +87,7 @@ test('Model - Indexing', async t => {
 
       // Verify the result is correct
       assert.ok(result?.age)
-      assert.ok(result?.age > 30)
+      assert.ok((result?.age as number) > 30)
 
       // Verify Array.filter WAS called (operator queries don't use index)
       assert.ok(filterCallCount > 0, 'Array.filter should be called for operator queries')
@@ -168,7 +168,7 @@ test('Model - Indexing', async t => {
       // Should return the first matching document
       const result = await User.findOne({ city: 'New York' })
       assert.strictEqual(result?.city, 'New York')
-      assert.ok(['Alice', 'Eve'].includes(result.name))
+      assert.ok(['Alice', 'Eve'].includes(result.name as string))
 
       // Verify Array.find was NOT called
       assert.strictEqual(findCallCount, 0, 'Array.find should not be called for indexed queries')

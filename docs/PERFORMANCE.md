@@ -89,9 +89,9 @@ _Benchmarked on Apple M4 Max (16 cores, 128GB RAM)_
 
 | Dataset Size | No Index | Single Index | Compound Index |
 | ------------ | -------- | ------------ | -------------- |
-| 1,000        | 0.42ms   | 0.05ms       | 0.01ms         |
-| 10,000       | 1.9ms    | 0.06ms       | 0.01ms         |
-| 100,000      | 9.85ms   | 0.06ms       | 0.03ms         |
+| 1,000        | 0.39ms   | 0.05ms       | 0.02ms         |
+| 10,000       | 2.02ms   | 0.06ms       | 0.02ms         |
+| 100,000      | 4.65ms   | 0.07ms       | 0.02ms         |
 
 **Speedup:** 97-1,157x faster with indexes!
 
@@ -225,19 +225,19 @@ Different storage backends have different performance characteristics.
 
 | Storage    | Time  | Throughput       |
 | ---------- | ----- | ---------------- |
-| Memory     | 35ms  | 285,714 docs/sec |
-| WiredTiger | 58ms  | 172,414 docs/sec |
-| SQLite     | 79ms  | 126,582 docs/sec |
-| File       | 480ms | 20,833 docs/sec  |
+| Memory     | 28ms  | 366,667 docs/sec |
+| WiredTiger | 66ms  | 151,515 docs/sec |
+| SQLite     | 87ms  | 114,943 docs/sec |
+| File       | 454ms | 22,026 docs/sec  |
 
 **Indexed Query (1 of 100k):**
 
 | Storage    | Time   |
 | ---------- | ------ |
-| Memory     | 0.06ms |
+| Memory     | 0.07ms |
 | File       | 0.16ms |
-| SQLite     | 0.21ms |
-| WiredTiger | 0.14ms |
+| SQLite     | 0.23ms |
+| WiredTiger | 0.16ms |
 
 All storage backends benefit equally from indexes!
 
@@ -245,9 +245,9 @@ All storage backends benefit equally from indexes!
 
 | Storage    | Time  | Throughput       |
 | ---------- | ----- | ---------------- |
-| Memory     | 263ms | 380,228 docs/sec |
-| WiredTiger | 520ms | 192,308 docs/sec |
-| SQLite     | 790ms | 126,582 docs/sec |
+| Memory     | 256ms | 390,625 docs/sec |
+| WiredTiger | 501ms | 199,601 docs/sec |
+| SQLite     | 759ms | 131,752 docs/sec |
 
 ### Storage Selection
 
@@ -365,9 +365,9 @@ console.timeEnd('lean')
 
 | Operation   | Regular | Lean    | Speedup |
 | ----------- | ------- | ------- | ------- |
-| findOne     | 0.072ms | 0.011ms | 6.8x    |
-| find (100)  | 0.08ms  | 0.02ms  | 3.3x    |
-| find (1000) | 0.32ms  | 0.01ms  | 27.2x   |
+| findOne     | 0.06ms  | 0.014ms | 4.1x    |
+| find (100)  | 0.12ms  | 0.02ms  | 4.7x    |
+| find (1000) | 0.58ms  | 0.01ms  | 46.2x   |
 
 ### When to Use Lean
 
@@ -501,12 +501,12 @@ _Benchmarked on Apple M4 Max with 100,000 documents_
 
 | Operation      | Indexed | Non-Indexed | Speedup    |
 | -------------- | ------- | ----------- | ---------- |
-| Equality query | <0.01ms | 2.08ms      | **482x**   |
-| Compound query | <0.01ms | 2.08ms      | **1306x**  |
-| count()        | 11.87ms | 25.81ms     | **2x**     |
-| update()       | 0.03ms  | 2.13ms      | **85x**    |
-| delete()       | 0.07ms  | -           | Ultra-fast |
-| Lean query     | 0.63ms  | -           | **18.4x**  |
+| Equality query | <0.01ms | 2.01ms      | **431x**   |
+| Compound query | <0.01ms | 2.01ms      | **1147x**  |
+| count()        | 11.60ms | 24.42ms     | **2x**     |
+| update()       | 0.02ms  | 2.09ms      | **83x**    |
+| delete()       | 0.12ms  | -           | Ultra-fast |
+| Lean query     | 0.70ms  | -           | **17.5x**  |
 
 ### Storage Benchmark
 
@@ -514,10 +514,10 @@ _Benchmarked on Apple M4 Max with 100,000 documents_
 
 | Storage    | Insert | Query  | Update | Delete |
 | ---------- | ------ | ------ | ------ | ------ |
-| File       | 480ms  | 0.01ms | 0.41ms | 0.09ms |
-| SQLite     | 79ms   | 0.01ms | 0.26ms | 0.13ms |
-| WiredTiger | 58ms   | 0.01ms | 1.07ms | 0.37ms |
-| Memory     | 35ms   | 0.06ms | 0.50ms | 0.50ms |
+| File       | 454ms  | 0.01ms | 0.42ms | 0.11ms |
+| SQLite     | 87ms   | 0.01ms | 0.29ms | 0.14ms |
+| WiredTiger | 66ms   | 0.01ms | 1.23ms | 0.33ms |
+| Memory     | 28ms   | 0.07ms | 0.50ms | 0.50ms |
 
 ### Operation Benchmarks
 
@@ -528,12 +528,12 @@ _Benchmarked on Apple M4 Max with 100,000 documents_
 | `findOne()`            | 0.06ms   |
 | `find()` (10 results)  | 0.07ms   |
 | `find()` (100 results) | 0.06ms   |
-| `countDocuments()`     | 12.7ms   |
-| `distinct()`           | 1.58ms   |
+| `countDocuments()`     | 11.76ms  |
+| `distinct()`           | 1.47ms   |
 | `updateOne()`          | 0.09ms   |
-| `updateMany()` (1000)  | 113.59ms |
-| `deleteOne()`          | 0.17ms   |
-| `insertMany()` (1000)  | 43.08ms  |
+| `updateMany()` (1000)  | 109.00ms |
+| `deleteOne()`          | 0.14ms   |
+| `insertMany()` (1000)  | 42.57ms  |
 
 ### Run Benchmarks
 

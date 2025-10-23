@@ -38,7 +38,7 @@ test('Model - find() method', async t => {
     const results = await User.find({ age: { $gte: 35 } })
 
     assert.strictEqual(results.length, 2) // Charlie (40) and Eve (35)
-    assert.ok(results.every(r => r.age >= 35))
+    assert.ok(results.every(r => (r.age as number) >= 35))
   })
 
   await t.test('should use index for O(1) lookup with equality query', async () => {
@@ -81,7 +81,7 @@ test('Model - find() method', async t => {
     const results = await User.find({ age: { $gte: 30 } })
 
     assert.ok(results.length > 0)
-    assert.ok(results.every(r => r.age >= 30))
+    assert.ok(results.every(r => (r.age as number) >= 30))
 
     // Verify Array.filter WAS called (linear scan was used)
     assert.ok(filterCallCount > 0, 'Array.filter should be called for non-indexed queries')

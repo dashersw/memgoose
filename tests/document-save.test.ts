@@ -82,7 +82,7 @@ test('Document Save Method', async t => {
   })
 
   await t.test('should apply timestamps on save', async () => {
-    const userSchema = new Schema(
+    const userSchema = new Schema<{ name: string; age: number; createdAt: Date; updatedAt: Date }>(
       {
         name: String,
         age: Number
@@ -109,10 +109,11 @@ test('Document Save Method', async t => {
 
     // Check from the database to verify persistence
     const updated = await User.findOne({ name: 'Eve' })
+    assert.ok(updated)
 
     // updatedAt should have changed, createdAt should not
-    assert.strictEqual(updated?.createdAt.getTime(), createdAt.getTime())
-    assert.ok(updated?.updatedAt.getTime() > updatedAt1.getTime())
+    assert.strictEqual(updated.createdAt.getTime(), createdAt.getTime())
+    assert.ok(updated.updatedAt.getTime() > updatedAt1.getTime())
   })
 
   await t.test('should execute pre-save hooks', async () => {
@@ -219,7 +220,10 @@ test('Document Save Method', async t => {
   })
 
   await t.test('should save with nested objects', async () => {
-    const User = model('SaveUser8', new Schema({}))
+    const User = model(
+      'SaveUser8',
+      new Schema<{ name: string; address: { street: string; city: string; zip: string } }>({})
+    )
     await User.create({
       name: 'Ivan',
       address: { street: '123 Main St', city: 'New York' }
@@ -241,7 +245,7 @@ test('Document Save Method', async t => {
   })
 
   await t.test('should save with arrays', async () => {
-    const User = model('SaveUser9', new Schema({}))
+    const User = model('SaveUser9', new Schema<{ name: string; tags: string[] }>({}))
     await User.create({ name: 'Jane', tags: ['nodejs', 'typescript'] })
 
     const user = await User.findOne({ name: 'Jane' })
@@ -370,7 +374,7 @@ test('Document Save Method', async t => {
   })
 
   await t.test('should work with documents from find() results', async () => {
-    const User = model('SaveUser12', new Schema({}))
+    const User = model('SaveUser12', new Schema<{ name: string; age: number }>({}))
     await User.insertMany([
       { name: 'Alice', age: 25 },
       { name: 'Bob', age: 30 },

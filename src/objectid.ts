@@ -46,7 +46,7 @@ export class ObjectId {
     return new Date(seconds * 1000)
   }
 
-  static isValid(id: any): boolean {
+  static isValid(id: unknown): boolean {
     if (!id) return false
     const idStr = id instanceof ObjectId ? id.toString() : String(id)
     return /^[0-9a-fA-F]{24}$/.test(idStr)

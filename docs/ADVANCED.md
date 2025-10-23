@@ -489,16 +489,137 @@ posts.forEach(post => {
 })
 ```
 
-### Nested Populate
+### Advanced Populate Options
 
-Currently, memgoose doesn't support nested populate (e.g., populating author's company). This is a potential future enhancement.
+memgoose supports advanced populate features with the `PopulateOptions` interface.
+
+#### Field Selection
+
+Select only specific fields from populated documents:
+
+```typescript
+// String format
+await Post.find().populate({ path: 'author', select: 'name email avatar' }).exec()
+
+// Exclude fields with minus prefix
+await Post.find().populate({ path: 'author', select: '-password -secretKey' }).exec()
+
+// Array format
+await Post.find()
+  .populate({ path: 'author', select: ['name', 'email'] })
+  .exec()
+
+// Object format
+await Post.find()
+  .populate({ path: 'author', select: { name: 1, email: 1, _id: 0 } })
+  .exec()
+```
+
+#### Match Filtering
+
+Filter populated documents with query conditions:
+
+```typescript
+// Only populate active authors
+await Post.find()
+  .populate({
+    path: 'author',
+    match: { status: 'active' }
+  })
+  .exec()
+
+// Complex match conditions
+await Post.find()
+  .populate({
+    path: 'author',
+    match: {
+      $and: [{ verified: true }, { reputation: { $gte: 100 } }]
+    }
+  })
+  .exec()
+```
+
+#### Nested Populate
+
+Populate nested references (multi-level):
+
+```typescript
+// Two-level populate
+await Post.find()
+  .populate({
+    path: 'author',
+    populate: {
+      path: 'company',
+      select: 'name location'
+    }
+  })
+  .exec()
+
+// Three-level populate
+await Comment.find()
+  .populate({
+    path: 'post',
+    populate: {
+      path: 'author',
+      populate: {
+        path: 'company',
+        select: 'name'
+      }
+    }
+  })
+  .exec()
+
+// Multiple nested populates
+await Post.find()
+  .populate({
+    path: 'author',
+    populate: [
+      { path: 'company', select: 'name' },
+      { path: 'profile', select: 'bio avatar' }
+    ]
+  })
+  .exec()
+```
+
+#### Combined Features
+
+```typescript
+// Select + match + nested populate
+await Post.find()
+  .populate({
+    path: 'author',
+    select: 'name email company',
+    match: { active: true },
+    populate: {
+      path: 'company',
+      select: 'name location',
+      match: { verified: true }
+    }
+  })
+  .exec()
+```
+
+#### Model Override
+
+Override the referenced model dynamically:
+
+```typescript
+// Useful for polymorphic relationships
+await Activity.find()
+  .populate({
+    path: 'targetId',
+    model: activity.targetType // 'User', 'Post', etc.
+  })
+  .exec()
+```
 
 ### Use Cases
 
-- **Author relationships**: Posts → User
-- **Category relationships**: Products → Category
-- **One-to-many**: User → Posts[]
+- **Author relationships**: Posts → User → Company
+- **Category relationships**: Products → Category → Department
+- **One-to-many**: User → Posts[] → Comments[]
 - **Many-to-many**: Posts ↔ Tags[]
+- **Polymorphic refs**: Activity → User/Post/Comment
 
 ---
 

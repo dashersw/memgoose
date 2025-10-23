@@ -302,7 +302,7 @@ test('Subdocuments', async t => {
       contact: contactSchema
     })
 
-    const userSchema = new Schema({
+    const userSchema = new Schema<UserDoc & { address: AddressWithContactDoc }>({
       name: String,
       address: addressSchema
     })

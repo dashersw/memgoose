@@ -1,20 +1,25 @@
-import { DocumentQueryBuilder, QueryOptions } from './document-query-builder'
+import { DocumentQueryBuilder, QueryOptions, PopulateOptions } from './document-query-builder'
 import { QueryableKeys } from './type-utils'
 
 // Type imports needed for Model reference
-export type Query<T extends Record<string, any> = Record<string, any>> = {
-  [K in QueryableKeys<T>]?: any
+type LogicalQueryOperators<T extends object> = {
+  $or?: Query<T>[]
+  $and?: Query<T>[]
+  $nor?: Query<T>[]
 }
+
+export type Query<T extends object = Record<string, unknown>> = {
+  [K in QueryableKeys<T>]?: any
+} & LogicalQueryOperators<T>
 
 // Import Document type for proper typing
 import type { Document } from './document'
 
 // FindQueryBuilder - for find() operations that return arrays
 // Extends DocumentQueryBuilder and adds sort(), limit(), skip()
-export class FindQueryBuilder<T extends Record<string, any>> extends DocumentQueryBuilder<
-  T,
-  Array<T & Document>
-> {
+export class FindQueryBuilder<
+  T extends object = Record<string, unknown>
+> extends DocumentQueryBuilder<T, Array<T & Document>> {
   protected _sort?: Partial<Record<keyof T, 1 | -1>>
   protected _limit?: number
   protected _skip?: number
@@ -63,13 +68,40 @@ export class FindQueryBuilder<T extends Record<string, any>> extends DocumentQue
   }
 
   // Override populate to return FindQueryBuilder (maintains sort/limit/skip methods)
-  // 5-line duplication necessary for proper type safety - same pattern as Mongoose
+  // Supports string, string[], or PopulateOptions for advanced population
   // @ts-expect-error - Intentional covariant return type override
-  populate<TPopulated extends Record<string, any> = T>(
-    field: string | string[]
+  populate<TPopulated extends object = T>(
+    field: string | string[] | PopulateOptions
   ): FindQueryBuilder<TPopulated> {
-    const fields = Array.isArray(field) ? field : [field]
-    this._populate = [...(this._populate || []), ...fields]
+    // Handle different input formats
+    if (!this._populate || Array.isArray(this._populate)) {
+      // Currently an array or undefined, need to append
+      const existing = (this._populate || []) as string[]
+      if (typeof field === 'string') {
+        this._populate = [...existing, field] as string[]
+      } else if (Array.isArray(field)) {
+        this._populate = [...existing, ...field] as string[]
+      } else {
+        // PopulateOptions object - convert existing array to options and add new one
+        if (existing.length === 0) {
+          this._populate = field
+        } else {
+          this._populate = [...existing.map(path => ({ path })), field] as PopulateOptions[]
+        }
+      }
+    } else {
+      // Currently a PopulateOptions or array of PopulateOptions
+      const current = this._populate as PopulateOptions | PopulateOptions[]
+      const currentArray = Array.isArray(current) ? current : [current]
+
+      if (typeof field === 'string') {
+        this._populate = [...currentArray, { path: field }] as PopulateOptions[]
+      } else if (Array.isArray(field)) {
+        this._populate = [...currentArray, ...field.map(path => ({ path }))] as PopulateOptions[]
+      } else {
+        this._populate = [...currentArray, field] as PopulateOptions[]
+      }
+    }
     return this as any
   }
 
@@ -86,8 +118,11 @@ export class FindQueryBuilder<T extends Record<string, any>> extends DocumentQue
     let results = await this._model._executeFindWithOptions(this._query, options)
 
     // Apply populate if specified
-    if (this._populate && this._populate.length > 0) {
-      results = await this._model._applyPopulate(results, this._populate)
+    if (this._populate) {
+      const hasPopulate = Array.isArray(this._populate) ? this._populate.length > 0 : true // Single PopulateOptions object
+      if (hasPopulate) {
+        results = await this._model._applyPopulate(results, this._populate)
+      }
     }
 
     return results

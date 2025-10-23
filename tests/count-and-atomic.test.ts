@@ -238,4 +238,70 @@ test('Count and Atomic Operations', async t => {
     const found = await User.findById(user._id)
     assert.ok(found)
   })
+
+  await t.test('findOneAndUpdate with returnDocument before and lean mode', async () => {
+    const User = model('User', new Schema({}))
+    await User.create({ name: 'Alice', age: 25, email: 'alice@test.com', city: 'NYC' })
+
+    const result = await User.findOneAndUpdate(
+      { name: 'Alice' },
+      { $set: { age: 26 } },
+      { returnDocument: 'before' }
+    ).lean()
+
+    assert.ok(result)
+    assert.strictEqual(result.age, 25) // Original value
+    assert.strictEqual(result.name, 'Alice')
+    // Lean mode should return plain object without methods
+    assert.strictEqual(typeof result.save, 'undefined')
+  })
+
+  await t.test('findOneAndUpdate with returnDocument before and field selection', async () => {
+    const User = model('User', new Schema({}))
+    await User.create({ name: 'Bob', age: 30, email: 'bob@test.com', city: 'LA' })
+
+    const result = await User.findOneAndUpdate(
+      { name: 'Bob' },
+      { $set: { age: 31 } },
+      { returnDocument: 'before' }
+    ).select('name age')
+
+    assert.ok(result)
+    assert.strictEqual(result.name, 'Bob')
+    assert.strictEqual(result.age, 30) // Original value
+    assert.strictEqual(result.email, undefined) // Not selected
+    assert.strictEqual(result.city, undefined) // Not selected
+  })
+
+  await t.test('findOneAndUpdate with returnDocument after and field selection', async () => {
+    const User = model('User', new Schema({}))
+    await User.create({ name: 'Charlie', age: 35, email: 'charlie@test.com', city: 'SF' })
+
+    const result = await User.findOneAndUpdate({ name: 'Charlie' }, { $set: { age: 36 } }).select(
+      'name age'
+    )
+
+    assert.ok(result)
+    assert.strictEqual(result.name, 'Charlie')
+    assert.strictEqual(result.age, 36) // Updated value (returnDocument: after is default)
+    assert.strictEqual(result.email, undefined) // Not selected
+    assert.strictEqual(result.city, undefined) // Not selected
+  })
+
+  await t.test('findOneAndDelete with field selection', async () => {
+    const User = model('User', new Schema({}))
+    await User.create({ name: 'Diana', age: 40, email: 'diana@test.com', city: 'Boston' })
+
+    const result = await User.findOneAndDelete({ name: 'Diana' }).select('name age')
+
+    assert.ok(result)
+    assert.strictEqual(result.name, 'Diana')
+    assert.strictEqual(result.age, 40)
+    assert.strictEqual(result.email, undefined) // Not selected
+    assert.strictEqual(result.city, undefined) // Not selected
+
+    // Verify it was deleted
+    const found = await User.findOne({ name: 'Diana' })
+    assert.strictEqual(found, null)
+  })
 })

@@ -1,9 +1,15 @@
-// Virtual type for getter-only virtuals
-export class VirtualType<T = any> {
+// Virtual type for getter/setter virtuals
+export class VirtualType<T = unknown> {
   private _getter?: ((this: any) => T) | ((doc: any) => T)
+  private _setter?: ((this: any, value: T) => void) | ((doc: any, value: T) => void)
 
   get(fn: ((this: any) => T) | ((doc: any) => T)): this {
     this._getter = fn
+    return this
+  }
+
+  set(fn: ((this: any, value: T) => void) | ((doc: any, value: T) => void)): this {
+    this._setter = fn
     return this
   }
 
@@ -14,20 +20,38 @@ export class VirtualType<T = any> {
     const getter = this._getter as (doc: any) => T
     return getter.length === 1 ? getter(doc) : getter.call(doc, doc)
   }
+
+  applySetter(doc: any, value: T): void {
+    if (!this._setter) return
+    // Support both syntaxes: function(doc, value) and function(this, value)
+    // When using .call(), the first arg is the 'this' context, second is the value
+    const setter = this._setter as any
+    if (setter.length === 2) {
+      // Two-parameter function: (doc, value) => void
+      setter(doc, value)
+    } else {
+      // Single-parameter function with 'this' context: function(value) or (this: any, value: T) => void
+      setter.call(doc, value)
+    }
+  }
+
+  hasSetter(): boolean {
+    return !!this._setter
+  }
 }
 
 // Hook context types for different events
 export type SaveHookContext<T> = { doc: T }
 
 // Pre-delete context
-export type PreDeleteHookContext<T = any> = {
-  query: any
+export type PreDeleteHookContext<T = Record<string, unknown>> = {
+  query: Record<string, unknown>
   _?: T // Phantom to avoid unused warning
 }
 
 // Post-delete context (has results)
 export type PostDeleteHookContext<T> = {
-  query: any
+  query: Record<string, unknown>
   deletedCount: number
   docs?: T[]
 }
@@ -36,15 +60,15 @@ export type DeleteHookContext<T> = PreDeleteHookContext<T> | PostDeleteHookConte
 
 // Pre-update context
 export type PreUpdateHookContext<T> = {
-  query: any
-  update?: any
+  query: Record<string, unknown>
+  update?: Record<string, unknown>
   doc?: T
 }
 
 // Post-update context (has results)
 export type PostUpdateHookContext<T> = {
-  query: any
-  update?: any
+  query: Record<string, unknown>
+  update?: Record<string, unknown>
   modifiedCount: number
   docs?: T[]
 }
@@ -52,14 +76,14 @@ export type PostUpdateHookContext<T> = {
 export type UpdateHookContext<T> = PreUpdateHookContext<T> | PostUpdateHookContext<T>
 
 // Pre-find context
-export type PreFindHookContext<T = any> = {
-  query: any
+export type PreFindHookContext<T = Record<string, unknown>> = {
+  query: Record<string, unknown>
   _?: T // Phantom to avoid unused warning
 }
 
 // Post-find context (has results)
 export type PostFindHookContext<T> = {
-  query: any
+  query: Record<string, unknown>
   result?: T | null
   results?: T[]
 }
@@ -67,10 +91,10 @@ export type PostFindHookContext<T> = {
 export type FindHookContext<T> = PreFindHookContext<T> | PostFindHookContext<T>
 
 // Generic hook function
-export type HookFunction = (context: any) => void | Promise<void>
+export type HookFunction = (context: Record<string, unknown>) => void | Promise<void>
 
 // Validation types
-export type ValidatorFunction = (value: any) => boolean | Promise<boolean>
+export type ValidatorFunction = (value: unknown) => boolean | Promise<boolean>
 
 export type FieldOptions = {
   type?: any
@@ -103,22 +127,25 @@ export type SchemaOptions = {
 }
 
 // Schema definition (simplified - just for type info and indexes)
-export class Schema<T extends Record<string, any> = Record<string, any>> {
-  private _definition: Record<string, any>
+export class Schema<T extends object = Record<string, unknown>> {
+  private _definition: Record<string, unknown>
   private _fieldOptions: Map<keyof T, FieldOptions>
   private _indexes: Array<Array<keyof T>>
   private _uniqueIndexes?: Set<string>
+  private _ttlIndexes: Map<string, number> // field -> ttl in seconds
   private _virtuals: Map<string, VirtualType>
   private _preHooks: Map<string, HookFunction[]>
   private _postHooks: Map<string, HookFunction[]>
   private _options: SchemaOptions
-  public methods: Record<string, (this: T, ...args: any[]) => any>
+  // Methods and statics need `any` for maximum flexibility with different `this` types
+  public methods: Record<string, (this: any, ...args: any[]) => any>
   public statics: Record<string, (...args: any[]) => any>
 
-  constructor(definition: Record<string, any>, options: SchemaOptions = {}) {
+  constructor(definition: Record<string, unknown>, options: SchemaOptions = {}) {
     this._definition = definition
     this._fieldOptions = new Map()
     this._indexes = []
+    this._ttlIndexes = new Map()
     this._virtuals = new Map()
     this._preHooks = new Map()
     this._postHooks = new Map()
@@ -130,7 +157,7 @@ export class Schema<T extends Record<string, any> = Record<string, any>> {
     this._parseFieldDefinitions(definition)
   }
 
-  private _parseFieldDefinitions(definition: Record<string, any>): void {
+  private _parseFieldDefinitions(definition: Record<string, unknown>): void {
     for (const [fieldName, fieldDef] of Object.entries(definition)) {
       if (fieldDef instanceof Schema) {
         // Nested schema (subdocument)
@@ -142,14 +169,15 @@ export class Schema<T extends Record<string, any> = Record<string, any>> {
         fieldDef.constructor === Object
       ) {
         // Check if it's a nested schema in detailed syntax
-        if (fieldDef.type instanceof Schema) {
+        const fieldDefObj = fieldDef as Record<string, unknown>
+        if (fieldDefObj.type instanceof Schema) {
           this._fieldOptions.set(fieldName as keyof T, fieldDef as FieldOptions)
         } else {
           // Detailed syntax: { type: String, required: true, ... }
           this._fieldOptions.set(fieldName as keyof T, fieldDef as FieldOptions)
 
           // Auto-create index if unique: true is specified
-          if (fieldDef.unique === true) {
+          if (fieldDefObj.unique === true) {
             this.index(fieldName as keyof T, { unique: true })
           }
         }
@@ -162,7 +190,7 @@ export class Schema<T extends Record<string, any> = Record<string, any>> {
 
   index(
     fields: keyof T | Array<keyof T> | Record<string, 1 | -1>,
-    options?: { unique?: boolean }
+    options?: { unique?: boolean; ttl?: number }
   ): this {
     // Normalize to array - single field becomes array with one element
     let normalizedFields: Array<keyof T>
@@ -173,7 +201,7 @@ export class Schema<T extends Record<string, any> = Record<string, any>> {
       // Handle Mongoose-style object format: { author: 1, year: -1 }
       normalizedFields = Object.keys(fields) as Array<keyof T>
     } else {
-      normalizedFields = [fields]
+      normalizedFields = [fields as keyof T]
     }
 
     this._indexes.push(normalizedFields)
@@ -185,6 +213,12 @@ export class Schema<T extends Record<string, any> = Record<string, any>> {
         this._uniqueIndexes = new Set()
       }
       this._uniqueIndexes.add(indexKey)
+    }
+
+    // Track TTL index (only for single-field indexes)
+    if (options?.ttl !== undefined && normalizedFields.length === 1) {
+      const field = String(normalizedFields[0])
+      this._ttlIndexes.set(field, options.ttl)
     }
 
     return this
@@ -204,6 +238,10 @@ export class Schema<T extends Record<string, any> = Record<string, any>> {
     return this._uniqueIndexes || new Set()
   }
 
+  getTTLIndexes(): Map<string, number> {
+    return this._ttlIndexes
+  }
+
   getVirtuals(): Map<string, VirtualType> {
     return this._virtuals
   }
@@ -212,7 +250,7 @@ export class Schema<T extends Record<string, any> = Record<string, any>> {
   pre(event: 'delete', fn: (context: PreDeleteHookContext<T>) => void | Promise<void>): this
   pre(event: 'update', fn: (context: PreUpdateHookContext<T>) => void | Promise<void>): this
   pre(event: 'find' | 'findOne', fn: (context: PreFindHookContext<T>) => void | Promise<void>): this
-  pre(event: string, fn: HookFunction): this {
+  pre(event: string, fn: any): this {
     if (!this._preHooks.has(event)) {
       this._preHooks.set(event, [])
     }
@@ -227,7 +265,7 @@ export class Schema<T extends Record<string, any> = Record<string, any>> {
     event: 'find' | 'findOne',
     fn: (context: PostFindHookContext<T>) => void | Promise<void>
   ): this
-  post(event: string, fn: HookFunction): this {
+  post(event: string, fn: any): this {
     if (!this._postHooks.has(event)) {
       this._postHooks.set(event, [])
     }
@@ -341,6 +379,78 @@ export class Schema<T extends Record<string, any> = Record<string, any>> {
       createdAt: createdAt || '',
       updatedAt: updatedAt || ''
     }
+  }
+
+  /**
+   * Load methods, statics, and virtuals from a class into the schema.
+   * Instance methods (non-static methods) are added to schema.methods
+   * Static methods are added to schema.statics
+   * Getters and setters are added as virtuals
+   *
+   * @param classConstructor - The class to load methods from
+   * @returns this for chaining
+   */
+  loadClass(classConstructor: new (...args: any[]) => any): this {
+    const prototype = classConstructor.prototype
+
+    // Walk up the prototype chain to include inherited methods and getters/setters
+    const prototypeChain: any[] = []
+    let currentProto = prototype
+    while (currentProto && currentProto !== Object.prototype) {
+      prototypeChain.push(currentProto)
+      currentProto = Object.getPrototypeOf(currentProto)
+    }
+
+    // Process each prototype in the chain (child first, then parents)
+    // Only add methods/getters/setters if they don't already exist (child takes precedence)
+    const processedVirtuals = new Set<string>()
+    const processedMethods = new Set<string>()
+
+    for (const proto of prototypeChain) {
+      const descriptors = Object.getOwnPropertyDescriptors(proto)
+
+      for (const [name, descriptor] of Object.entries(descriptors)) {
+        if (name === 'constructor') continue
+
+        // Handle getters/setters as virtuals (child takes precedence)
+        if (descriptor.get || descriptor.set) {
+          if (!processedVirtuals.has(name)) {
+            processedVirtuals.add(name)
+            const virtual = this.virtual(name)
+            if (descriptor.get) {
+              virtual.get(descriptor.get)
+            }
+            if (descriptor.set) {
+              virtual.set(descriptor.set)
+            }
+          }
+          continue
+        }
+
+        // Handle regular methods (child takes precedence)
+        if (typeof descriptor.value === 'function') {
+          if (!processedMethods.has(name)) {
+            processedMethods.add(name)
+            this.methods[name] = descriptor.value
+          }
+        }
+      }
+    }
+
+    // Get static methods from the class itself
+    const staticMethodNames = Object.getOwnPropertyNames(classConstructor).filter(
+      name =>
+        name !== 'length' &&
+        name !== 'name' &&
+        name !== 'prototype' &&
+        typeof (classConstructor as any)[name] === 'function'
+    )
+
+    for (const methodName of staticMethodNames) {
+      this.statics[methodName] = (classConstructor as any)[methodName]
+    }
+
+    return this
   }
 
   async validate(doc: Partial<T>): Promise<void> {

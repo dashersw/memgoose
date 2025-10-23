@@ -33,3 +33,5 @@ examples
 docs
 data
 build
+
+:memory:

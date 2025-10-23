@@ -894,27 +894,27 @@ await User.create({ name: 'Alice' })
 
 | Storage    | Time  |
 | ---------- | ----- |
-| Memory     | 35ms  |
-| WiredTiger | 58ms  |
-| SQLite     | 79ms  |
-| File       | 480ms |
+| Memory     | 28ms  |
+| WiredTiger | 66ms  |
+| SQLite     | 87ms  |
+| File       | 454ms |
 
 **Indexed Query (1 of 100k):**
 
 | Storage    | Time   |
 | ---------- | ------ |
-| Memory     | 0.06ms |
+| Memory     | 0.07ms |
 | File       | 0.16ms |
-| SQLite     | 0.21ms |
-| WiredTiger | 0.14ms |
+| SQLite     | 0.23ms |
+| WiredTiger | 0.16ms |
 
 **Bulk Insert (100k documents):**
 
 | Storage    | Time  |
 | ---------- | ----- |
-| Memory     | 263ms |
-| WiredTiger | 520ms |
-| SQLite     | 790ms |
+| Memory     | 256ms |
+| WiredTiger | 501ms |
+| SQLite     | 759ms |
 
 ### When to Use Each
 

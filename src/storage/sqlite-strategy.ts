@@ -29,7 +29,7 @@ type DatabaseInstance = any // Will be Database.Database when installed
 type StatementInstance = any // Will be Database.Statement when installed
 
 // SQLite storage strategy with efficient indexing
-export class SqliteStorageStrategy<T extends Record<string, any>> implements StorageStrategy<T> {
+export class SqliteStorageStrategy<T extends object> implements StorageStrategy<T> {
   private _data: T[] = []
   private _db: DatabaseInstance | null = null
   private _dataPath: string
@@ -68,7 +68,8 @@ export class SqliteStorageStrategy<T extends Record<string, any>> implements Sto
 
     // Function to extract document ID (assumes _id field)
     this._getDocId = (doc: T) => {
-      if (doc._id) return String(doc._id)
+      const docRecord = doc as Record<string, unknown>
+      if (docRecord._id) return String(docRecord._id)
       // Fallback: use entire document as key (not ideal, but works)
       return JSON.stringify(doc)
     }
@@ -374,7 +375,7 @@ export class SqliteStorageStrategy<T extends Record<string, any>> implements Sto
     matcher: QueryMatcher<T>,
     indexHint?: {
       fields: Array<keyof T>
-      values: Record<string, any>
+      values: Record<string, unknown>
     }
   ): T[] {
     // If no index hint, use in-memory linear scan
@@ -412,13 +413,13 @@ export class SqliteStorageStrategy<T extends Record<string, any>> implements Sto
     if (this._db && indexHint.fields.length > 0) {
       try {
         const whereConditions: string[] = []
-        const params: any[] = []
+        const params: unknown[] = []
 
         for (const field of indexHint.fields) {
           const value = indexHint.values[field as string]
           // Serialize the value to match JSON storage format
           // SQLite can only bind: numbers, strings, bigints, buffers, and null
-          let sqlValue: any
+          let sqlValue: unknown
 
           if (value === null || value === undefined) {
             sqlValue = null
@@ -427,9 +428,10 @@ export class SqliteStorageStrategy<T extends Record<string, any>> implements Sto
             sqlValue = value ? 1 : 0
           } else if (typeof value === 'object') {
             // For objects, try different serialization strategies
-            if (typeof value.toJSON === 'function') {
+            const valueObj = value as Record<string, unknown>
+            if (typeof valueObj.toJSON === 'function') {
               // ObjectId and Date have toJSON() - use it to get primitive value
-              sqlValue = value.toJSON()
+              sqlValue = (valueObj.toJSON as () => unknown)()
             } else if (
               typeof value.toString === 'function' &&
               value.constructor.name === 'ObjectId'

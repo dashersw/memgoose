@@ -1,7 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert'
 import { model, Schema, clearRegistry } from '../index'
-import { testUsers } from './fixtures'
+import { testUsers, type TestUser } from './fixtures'
 
 test('Model - Complex Queries', async t => {
   t.beforeEach(async () => await clearRegistry())
@@ -24,12 +24,13 @@ test('Model - Complex Queries', async t => {
   })
 
   await t.test('should handle combination of operators', async () => {
-    const User = model('User', new Schema({}))
+    const User = model('User', new Schema<TestUser>({}))
     await User.insertMany(testUsers)
     const result = await User.findOne({
       age: { $gte: 30, $lt: 40 }
     })
 
-    assert.ok(result?.age >= 30 && result?.age < 40)
+    assert.ok(result)
+    assert.ok(result.age >= 30 && result.age < 40)
   })
 })

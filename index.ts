@@ -22,6 +22,7 @@ export type {
   Update,
   UpdateOperator,
   QueryOptions,
+  PopulateOptions,
   Document
 } from './src/model'
 export { QueryBuilder } from './src/query-builder'
@@ -29,9 +30,24 @@ export { DocumentQueryBuilder } from './src/document-query-builder'
 export { FindQueryBuilder } from './src/find-query-builder'
 export { ObjectId } from './src/objectid'
 
+// Aggregation pipeline
+export type {
+  AggregationPipeline,
+  AggregationStage,
+  GroupStage,
+  AccumulatorExpression,
+  ProjectStage,
+  ProjectionExpression,
+  LookupStage,
+  UnwindStage,
+  SortStage,
+  ReplaceRootStage
+} from './src/aggregation'
+
 // Database and connection management (Mongoose-like API)
 export { Database } from './src/database'
 export type { DatabaseConfig } from './src/database'
+export { TTLManager } from './src/ttl-manager'
 export {
   connect,
   createDatabase,

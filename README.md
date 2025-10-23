@@ -34,14 +34,18 @@ const count = await User.countDocuments({ age: { $gte: 18 } })
 
 - 🚀 **Fast**: O(1) lookups with indexing support (10-300x faster than linear scan)
 - 🎯 **Type-safe**: Written in TypeScript with full type definitions
-- 🔍 **Rich Queries**: MongoDB-like query operators ($eq, $ne, $in, $nin, $gt, $gte, $lt, $lte, $regex)
-- 📊 **Smart Indexing**: Single-field, compound, and partial index matching
+- 🔍 **Rich Queries**: MongoDB-like query operators ($eq, $ne, $in, $nin, $gt, $gte, $lt, $lte, $regex, $exists, $size, $elemMatch, $all)
+- 🧮 **Logical Operators**: $or, $and, $nor, $not for complex query logic
+- 📊 **Aggregation Pipeline**: Full pipeline with $match, $group, $project, $lookup, $unwind, and more
+- 🔗 **Advanced Populate**: Nested populate with select, match filtering, and field projection
+- ⏱️ **TTL Indexes**: Automatic document expiration for sessions, caches, and temporary data
+- 📈 **Smart Indexing**: Single-field, compound, unique, and partial index matching
 - 🏗️ **Mongoose-Compatible**: Schema, Model, and model() factory pattern
 - 💾 **Pluggable Storage**: Memory, WiredTiger, SQLite, or file-based (NDJSON + WAL) persistence
 - 📦 **Zero Dependencies**: No runtime dependencies (SQLite storage requires optional peer dependency)
 - 🎣 **Hooks**: Pre/post hooks for save, update, delete, and find operations
 - 🔮 **Virtuals**: Computed properties with getter functions
-- 🧪 **Well Tested**: Comprehensive test suite with excellent code coverage
+- 🧪 **Well Tested**: Comprehensive test suite with 800+ passing tests
 
 ## Why memgoose?
 
@@ -78,8 +82,9 @@ npm install memgoose-wiredtiger
 
 - **[Getting Started](./docs/GETTING_STARTED.md)** - Quick start guide with examples
 - **[API Reference](./docs/API.md)** - Complete API documentation
-- **[Schemas](./docs/SCHEMAS.md)** - Field types, validation, timestamps, subdocuments
-- **[Queries](./docs/QUERIES.md)** - Query and update operators, query chaining
+- **[Schemas](./docs/SCHEMAS.md)** - Field types, validation, timestamps, subdocuments, TTL indexes
+- **[Queries](./docs/QUERIES.md)** - Query operators, logical operators, and query chaining
+- **[Aggregation](./docs/AGGREGATION.md)** - Complete aggregation pipeline guide
 - **[Storage](./docs/STORAGE.md)** - All storage backends (Memory, File, SQLite, WiredTiger)
 - **[Advanced Features](./docs/ADVANCED.md)** - Hooks, virtuals, populate, discriminators
 - **[Performance](./docs/PERFORMANCE.md)** - Optimization guide and benchmarks
@@ -857,16 +862,19 @@ memgoose/
 
 **Operators:**
 
-- Query: $eq, $ne, $in, $nin, $gt, $gte, $lt, $lte, $regex
+- Query: $eq, $ne, $in, $nin, $gt, $gte, $lt, $lte, $regex, $exists, $size, $elemMatch, $all
+- Logical: $or, $and, $nor, $not
 - Update: $set, $unset, $inc, $dec, $push, $pull, $addToSet, $pop, $rename
 
 **Advanced Features:**
 
-- Single-field & compound indexes
+- Single-field, compound, unique & TTL indexes
+- Aggregation pipeline with 12+ stages
+- Advanced populate (nested, select, match)
 - Virtual properties (computed fields)
 - Pre/post hooks for all operations
 - Async hook support
-- `countDocuments()`, `distinct()`
+- `countDocuments()`, `distinct()`, `aggregate()`
 
 ## Contributing
 

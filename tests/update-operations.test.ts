@@ -168,9 +168,9 @@ test('Update Operations', async t => {
     // Verify index was rebuilt
     let findCallCount = 0
     const originalFind = Array.prototype.find
-    Array.prototype.find = function (...args) {
+    Array.prototype.find = function (...args: any[]) {
       findCallCount++
-      return originalFind.apply(this, args)
+      return (originalFind as any).apply(this, args)
     }
 
     const result = await User.findOne({ age: 35 })

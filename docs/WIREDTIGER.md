@@ -113,9 +113,9 @@ WiredTiger excels in several scenarios:
 
 | Operation          | Memory | File   | SQLite | WiredTiger |
 | ------------------ | ------ | ------ | ------ | ---------- |
-| Insert (10k docs)  | 35ms   | 480ms  | 79ms   | 58ms       |
-| Query (indexed)    | 0.06ms | 0.16ms | 0.21ms | 0.14ms     |
-| Bulk insert (100k) | 263ms  | N/A    | 790ms  | 520ms      |
+| Insert (10k docs)  | 28ms   | 454ms  | 87ms   | 66ms       |
+| Query (indexed)    | 0.07ms | 0.16ms | 0.23ms | 0.16ms     |
+| Bulk insert (100k) | 256ms  | N/A    | 759ms  | 501ms      |
 
 _Benchmarks on Apple M4 Max (16 cores, 128GB RAM). Your results may vary._
 

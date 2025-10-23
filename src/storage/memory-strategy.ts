@@ -8,7 +8,7 @@ type IndexMetadata<T> = {
 }
 
 // In-memory storage strategy with efficient indexing
-export class MemoryStorageStrategy<T extends Record<string, any>> implements StorageStrategy<T> {
+export class MemoryStorageStrategy<T extends object> implements StorageStrategy<T> {
   private _data: T[] = []
   private _indexes: Map<string, IndexMetadata<T>> = new Map()
 
@@ -159,7 +159,7 @@ export class MemoryStorageStrategy<T extends Record<string, any>> implements Sto
     matcher: QueryMatcher<T>,
     indexHint?: {
       fields: Array<keyof T>
-      values: Record<string, any>
+      values: Record<string, unknown>
     }
   ): T[] {
     // If no index hint, use linear scan (filter directly, no copy needed)

@@ -6,6 +6,8 @@ import { FindQueryBuilder } from './find-query-builder'
 import { QueryableKeys } from './type-utils'
 import { StorageStrategy, MemoryStorageStrategy } from './storage'
 import type { Document } from './document'
+import type { Database } from './database'
+import type { AggregationPipeline } from './aggregation'
 
 // Symbols for internal document properties (non-enumerable)
 const ORIGINAL_DOC = Symbol('originalDoc')
@@ -22,7 +24,7 @@ export type DeepPartial<T> = T extends object
   : T
 
 // Type definitions for query operators
-export type QueryOperator<T = any> = {
+export type QueryOperator<T = unknown> = {
   $eq?: T
   $ne?: T
   $in?: T[]
@@ -34,38 +36,44 @@ export type QueryOperator<T = any> = {
   $regex?: string | RegExp
   $exists?: boolean
   $size?: number
-  $elemMatch?: Record<string, any>
-  $all?: T extends any[] ? T : never
+  $elemMatch?: Record<string, unknown>
+  $all?: T extends unknown[] ? T : never
+  $not?: QueryOperator<T>
 }
 
 // Query can be a simple value or an operator object
-export type QueryValue<T = any> = T | QueryOperator<T>
+export type QueryValue<T = unknown> = T | QueryOperator<T>
 
-// Query object with field names as keys
-export type Query<T extends Record<string, any> = Record<string, any>> = {
-  [K in QueryableKeys<T>]?: QueryValue<T[K]>
+// Logical operators type
+type LogicalQueryOperators<T extends object> = {
+  $or?: Query<T>[]
+  $and?: Query<T>[]
+  $nor?: Query<T>[]
 }
 
+// Query object with field names as keys and optional logical operators
+export type Query<T extends object = Record<string, unknown>> = {
+  [K in QueryableKeys<T>]?: QueryValue<T[K]>
+} & LogicalQueryOperators<T>
+
 // Update operators
-export type UpdateOperator<T = any> = {
+export type UpdateOperator<T extends object = Record<string, unknown>> = {
   $set?: Partial<T>
-  $unset?: Partial<Record<keyof T, any>>
+  $unset?: Partial<Record<keyof T, unknown>>
   $inc?: Partial<Record<keyof T, number>>
   $dec?: Partial<Record<keyof T, number>>
-  $push?: Partial<Record<keyof T, any>>
-  $pull?: Partial<Record<keyof T, any>>
-  $addToSet?: Partial<Record<keyof T, any>>
+  $push?: Partial<Record<keyof T, unknown>>
+  $pull?: Partial<Record<keyof T, unknown>>
+  $addToSet?: Partial<Record<keyof T, unknown>>
   $pop?: Partial<Record<keyof T, 1 | -1>>
   $rename?: Partial<Record<keyof T, string>>
 }
 
 // Update can be direct field updates or operator-based
-export type Update<T extends Record<string, any> = Record<string, any>> =
-  | Partial<T>
-  | UpdateOperator<T>
+export type Update<T extends object = Record<string, unknown>> = Partial<T> | UpdateOperator<T>
 
 // Query options
-export type QueryOptions<T = any> = {
+export type QueryOptions<T extends object = Record<string, unknown>> = {
   sort?: Partial<Record<keyof T, 1 | -1>>
   limit?: number
   skip?: number
@@ -73,19 +81,28 @@ export type QueryOptions<T = any> = {
   lean?: boolean
 }
 
-export class Model<T extends Record<string, any>> {
+// Populate options for advanced population
+export type PopulateOptions = {
+  path: string
+  select?: string | string[] | Record<string, 0 | 1>
+  match?: Query<object>
+  populate?: PopulateOptions | PopulateOptions[]
+  model?: string
+}
+
+export class Model<T extends object = Record<string, unknown>> {
   private _storage: StorageStrategy<T>
   private _schema?: Schema<T>
   private _discriminatorKey?: string
   private _discriminatorValue?: string
-  private _database?: any // Database reference for getModel
+  private _database?: Database // Database reference for getModel
   private _storageInitPromise: Promise<void> | null = null
 
   constructor(
     schema?: Schema<T>,
     discriminatorValue?: string,
     storage?: StorageStrategy<T>,
-    database?: any
+    database?: Database
   ) {
     this._schema = schema
     this._storage = storage || new MemoryStorageStrategy<T>()
@@ -108,7 +125,7 @@ export class Model<T extends Record<string, any>> {
       }
 
       // Add static methods from schema
-      const modelWithStatics = this as Record<string, any>
+      const modelWithStatics = this as Record<string, unknown>
       for (const [methodName, methodFn] of Object.entries(schema.statics)) {
         modelWithStatics[methodName] = methodFn.bind(this)
       }
@@ -134,47 +151,76 @@ export class Model<T extends Record<string, any>> {
     const virtuals = this._schema.getVirtuals()
 
     // Always create a copy to add methods, even if no virtuals
-    let withVirtuals: any = { ...doc }
+    // Need to use intermediate variable to allow dynamic property assignment
+    const intermediate = { ...doc }
 
     // Apply field getters first
-    withVirtuals = this._schema.applyGetters(withVirtuals)
+    const withGetters = this._schema.applyGetters(intermediate as T)
+
+    // Create a mutable result object for adding properties dynamically
+    const result = withGetters as T & Document
 
     // Apply virtuals if any
     if (virtuals.size > 0) {
       for (const [name, virtual] of virtuals.entries()) {
-        const value = virtual.applyGetter(doc)
-        if (value !== undefined) {
-          withVirtuals[name] = value
+        // Define property with getter and optionally setter
+        const propertyDescriptor: PropertyDescriptor = {
+          enumerable: true,
+          configurable: true
         }
+
+        // Add getter
+        propertyDescriptor.get = function (this: T & Document) {
+          return virtual.applyGetter(this)
+        }
+
+        // Add setter if available, otherwise add no-op setter to allow assignment without error
+        if (virtual.hasSetter()) {
+          propertyDescriptor.set = function (this: T & Document, value: unknown) {
+            // Apply setter to this object (which modifies the document properties)
+            virtual.applySetter(this, value)
+          }
+        } else {
+          // No-op setter for getter-only virtuals (silently ignore assignments)
+          propertyDescriptor.set = function () {
+            // Intentionally empty - assignments are silently ignored
+          }
+        }
+
+        Object.defineProperty(result, name, propertyDescriptor)
       }
     }
 
     // Add instance methods from schema
     if (this._schema) {
       for (const [methodName, methodFn] of Object.entries(this._schema.methods)) {
-        withVirtuals[methodName] = methodFn.bind(withVirtuals)
+        const boundMethod = methodFn.bind(result) as unknown
+        ;(result as Record<string, unknown>)[methodName] = boundMethod
       }
     }
 
     // Store reference to original document and model for save functionality using Symbols
     // This makes them non-enumerable and won't show up in iteration
-    withVirtuals[ORIGINAL_DOC] = doc
-    withVirtuals[MODEL_REF] = this
+    ;(result as unknown as Record<symbol, unknown>)[ORIGINAL_DOC] = doc
+    ;(result as unknown as Record<symbol, unknown>)[MODEL_REF] = this
 
     // Add save method
-    withVirtuals.save = async () => {
-      const originalDoc = withVirtuals[ORIGINAL_DOC]
-      const model = withVirtuals[MODEL_REF]
+    result.save = async () => {
+      const originalDoc = (result as unknown as Record<symbol, unknown>)[ORIGINAL_DOC] as T
+      const model = (result as unknown as Record<symbol, unknown>)[MODEL_REF] as Model<T>
 
       await model._ensureStorageReady()
 
       // Check if original document still exists in storage (by _id or reference)
       const allDocs = await model._storage.getAll()
-      const docExists = allDocs.some(
-        (d: T) =>
+      const docExists = allDocs.some((d: T) => {
+        const dRecord = d as unknown as Record<string, unknown>
+        const origRecord = originalDoc as unknown as Record<string, unknown>
+        return (
           d === originalDoc ||
-          (d._id && originalDoc._id && d._id.toString() === originalDoc._id.toString())
-      )
+          (dRecord._id && origRecord._id && String(dRecord._id) === String(origRecord._id))
+        )
+      })
       if (!docExists) {
         throw new Error('Document has been deleted and cannot be saved')
       }
@@ -186,21 +232,23 @@ export class Model<T extends Record<string, any>> {
       const testCopy = JSON.parse(JSON.stringify(originalDoc)) as T
 
       // Copy modified fields to test copy (skip virtuals and methods)
-      for (const key in withVirtuals) {
+      for (const key in result) {
         if (
-          typeof withVirtuals[key] === 'function' || // Skip methods
+          typeof (result as unknown as Record<string, unknown>)[key] === 'function' || // Skip methods
           virtualNames.has(key) // Skip virtuals
         ) {
           continue
         }
 
         // Copy the value to the test copy
-        testCopy[key as keyof T] = withVirtuals[key]
+        ;(testCopy as unknown as Record<string, unknown>)[key] = (
+          result as unknown as Record<string, unknown>
+        )[key]
       }
 
       // Remove fields that were deleted from the document
       for (const key in testCopy) {
-        if (!virtualNames.has(key) && !(key in withVirtuals)) {
+        if (!virtualNames.has(key) && !(key in result)) {
           delete testCopy[key as keyof T]
         }
       }
@@ -248,29 +296,39 @@ export class Model<T extends Record<string, any>> {
     }
 
     // Add toJSON and toObject methods
-    withVirtuals.toJSON = (options?: {
+    withGetters.toJSON = (options?: {
       virtuals?: boolean
       getters?: boolean
-      transform?: (doc: any) => any
+      transform?: (doc: Record<string, unknown>) => Record<string, unknown>
     }) => {
-      return this._serializeDocument(withVirtuals, options || {})
+      return this._serializeDocument(
+        withGetters as unknown as Record<string, unknown>,
+        options || {}
+      )
     }
 
-    withVirtuals.toObject = (options?: {
+    withGetters.toObject = (options?: {
       virtuals?: boolean
       getters?: boolean
-      transform?: (doc: any) => any
+      transform?: (doc: Record<string, unknown>) => Record<string, unknown>
     }) => {
-      return this._serializeDocument(withVirtuals, options || {})
+      return this._serializeDocument(
+        withGetters as unknown as Record<string, unknown>,
+        options || {}
+      )
     }
 
-    return withVirtuals as T & Document
+    return withGetters
   }
 
   private _serializeDocument(
-    doc: any,
-    options: { virtuals?: boolean; getters?: boolean; transform?: (doc: any) => any }
-  ): any {
+    doc: Record<string, unknown>,
+    options: {
+      virtuals?: boolean
+      getters?: boolean
+      transform?: (doc: Record<string, unknown>) => Record<string, unknown>
+    }
+  ): Record<string, unknown> {
     let result = { ...doc }
 
     // Remove all function properties (methods) and convert ObjectIds to strings
@@ -298,17 +356,24 @@ export class Model<T extends Record<string, any>> {
     const isExclusion = fields.some(f => select[f] === 0)
 
     // Can't mix inclusion and exclusion (except for _id)
-    if (isInclusion && isExclusion) {
+    if (isInclusion && isExclusion && !('_id' in select)) {
       throw new Error('Cannot mix inclusion and exclusion in field selection')
     }
 
-    const result: any = {}
+    const result: Record<string, unknown> = {}
 
     if (isInclusion) {
       // Include only specified fields
       for (const field of fields) {
         if (select[field] === 1 && field in doc) {
-          result[field] = doc[field]
+          result[field as string] = doc[field]
+        }
+      }
+
+      // Always include _id unless explicitly excluded
+      if (!('_id' in select) || select['_id' as keyof T] !== 0) {
+        if ('_id' in doc) {
+          result._id = (doc as Record<string, unknown>)._id
         }
       }
     } else {
@@ -320,10 +385,10 @@ export class Model<T extends Record<string, any>> {
       }
     }
 
-    return result
+    return result as Partial<T>
   }
 
-  private async _executePreHooks(event: string, context: any): Promise<void> {
+  private async _executePreHooks(event: string, context: Record<string, unknown>): Promise<void> {
     if (!this._schema) return
 
     const hooks = this._schema.getPreHooks(event)
@@ -332,7 +397,7 @@ export class Model<T extends Record<string, any>> {
     }
   }
 
-  private async _executePostHooks(event: string, context: any): Promise<void> {
+  private async _executePostHooks(event: string, context: Record<string, unknown>): Promise<void> {
     if (!this._schema) return
 
     const hooks = this._schema.getPostHooks(event)
@@ -366,7 +431,7 @@ export class Model<T extends Record<string, any>> {
     if (!timestampConfig) return
 
     const now = new Date()
-    const docWithTimestamps = doc as Record<string, any>
+    const docWithTimestamps = doc as unknown as Record<string, unknown>
 
     if (operation === 'create' && timestampConfig.createdAt) {
       docWithTimestamps[timestampConfig.createdAt] = now
@@ -382,38 +447,174 @@ export class Model<T extends Record<string, any>> {
     this._storage.checkUniqueConstraints(doc, excludeDoc)
   }
 
-  async _applyPopulate(docs: T[], fields: string[]): Promise<T[]> {
-    if (!this._schema || fields.length === 0) return docs
+  async _applyPopulate(
+    docs: T[],
+    options: string[] | PopulateOptions | PopulateOptions[]
+  ): Promise<T[]> {
+    if (!this._schema) return docs
 
-    const populated: T[] = []
+    // Normalize options to array of PopulateOptions
+    const normalizedOptions = this._normalizePopulateOptions(options)
+    if (normalizedOptions.length === 0) return docs
 
-    for (const doc of docs) {
-      const populatedDoc: Record<string, any> = { ...doc }
+    let populated = [...docs]
 
-      for (const fieldName of fields) {
-        const fieldOptions = this._schema.getFieldOptions(fieldName as keyof T)
-        if (!fieldOptions?.ref) continue
-
-        const refModelName = fieldOptions.ref
-        // Get model from database registry
-        const refModel = this._database?.getModel(refModelName)
-        if (!refModel) continue
-
-        const docAsRecord = doc as Record<string, any>
-        const refId = docAsRecord[fieldName]
-        if (refId !== undefined && refId !== null) {
-          // Fetch the referenced document
-          const refDoc = await refModel.findById(refId)
-          if (refDoc) {
-            populatedDoc[fieldName] = refDoc
-          }
-        }
-      }
-
-      populated.push(populatedDoc as T)
+    // Apply each populate option
+    for (const option of normalizedOptions) {
+      populated = await this._populatePath(populated, option)
     }
 
     return populated
+  }
+
+  private _normalizePopulateOptions(
+    options: string[] | PopulateOptions | PopulateOptions[]
+  ): PopulateOptions[] {
+    if (!options) return []
+
+    if (Array.isArray(options)) {
+      // Check if it's string[] or PopulateOptions[]
+      if (options.length === 0) return []
+      if (typeof options[0] === 'string') {
+        return (options as string[]).map(path => ({ path }))
+      }
+      return options as PopulateOptions[]
+    }
+
+    // Single PopulateOptions object
+    if (typeof options === 'object' && 'path' in options) {
+      return [options as PopulateOptions]
+    }
+
+    // Single string
+    if (typeof options === 'string') {
+      return [{ path: options }]
+    }
+
+    return []
+  }
+
+  private async _populatePath(docs: T[], option: PopulateOptions): Promise<T[]> {
+    if (!this._schema) return docs
+
+    const { path, select, match, populate: nestedPopulate, model: modelOverride } = option
+
+    const fieldOptions = this._schema.getFieldOptions(path as keyof T)
+    if (!fieldOptions?.ref && !modelOverride) return docs
+
+    const refModelName = modelOverride || fieldOptions?.ref
+    if (!refModelName) return docs
+
+    // Get model from database registry
+    const refModel = this._database?.getModel(refModelName)
+    if (!refModel) {
+      console.warn(`Referenced model ${refModelName} not found for populate`)
+      return docs
+    }
+
+    // Collect all IDs to populate (batch fetch optimization)
+    const idsToPopulate = new Set<unknown>()
+    for (const doc of docs) {
+      const docAsRecord = doc as unknown as Record<string, unknown>
+      const value = docAsRecord[path]
+      if (value !== undefined && value !== null) {
+        if (Array.isArray(value)) {
+          value.forEach(id => idsToPopulate.add(id))
+        } else {
+          idsToPopulate.add(value)
+        }
+      }
+    }
+
+    if (idsToPopulate.size === 0) return docs
+
+    // Build query with match filter
+    let populateQuery: Query<Record<string, unknown>> | undefined
+
+    if (match) {
+      // Combine ID filter with match conditions using $and
+      populateQuery = {
+        $and: [{ _id: { $in: Array.from(idsToPopulate) } }, match]
+      }
+    } else {
+      populateQuery = {
+        _id: { $in: Array.from(idsToPopulate) }
+      }
+    }
+
+    // Fetch referenced documents
+    let refDocs = await refModel.find(populateQuery)
+
+    // Apply field selection
+    if (select) {
+      refDocs = refDocs.map((doc: Record<string, unknown>) =>
+        this._applyPopulateSelect(doc, select)
+      ) as (Record<string, unknown> & Document)[]
+    }
+
+    // Handle nested populate
+    if (nestedPopulate) {
+      refDocs = (await refModel._applyPopulate(
+        refDocs as unknown as any[],
+        nestedPopulate
+      )) as unknown as (Record<string, unknown> & Document)[]
+    }
+
+    // Create lookup map
+    const refMap = new Map(refDocs.map((doc: Record<string, unknown>) => [doc._id, doc]))
+
+    // Replace IDs with documents
+    const populated = docs.map((doc: T) => {
+      const docAsRecord = doc as unknown as Record<string, unknown>
+      const populatedDoc = { ...docAsRecord }
+      const value = populatedDoc[path]
+
+      if (Array.isArray(value)) {
+        // Populate array of references
+        populatedDoc[path] = value.map((id: unknown) => refMap.get(id)).filter(Boolean)
+      } else if (value !== undefined && value !== null) {
+        // Populate single reference
+        const refDoc = refMap.get(value)
+        if (refDoc) {
+          populatedDoc[path] = refDoc
+        }
+      }
+
+      return populatedDoc as T
+    })
+
+    return populated
+  }
+
+  private _applyPopulateSelect(
+    doc: Record<string, unknown>,
+    select: string | string[] | Record<string, 0 | 1>
+  ): Record<string, unknown> {
+    let selectObj: Partial<Record<keyof T, 0 | 1>>
+
+    if (typeof select === 'string') {
+      // Convert space-separated string to object
+      selectObj = {}
+      select.split(/\s+/).forEach(field => {
+        if (field.startsWith('-')) {
+          selectObj[field.slice(1) as keyof T] = 0
+        } else if (field.startsWith('+')) {
+          selectObj[field.slice(1) as keyof T] = 1
+        } else {
+          selectObj[field as keyof T] = 1
+        }
+      })
+    } else if (Array.isArray(select)) {
+      // Convert array to object
+      selectObj = {}
+      select.forEach(field => {
+        selectObj[field as keyof T] = 1
+      })
+    } else {
+      selectObj = select as Partial<Record<keyof T, 0 | 1>>
+    }
+
+    return this._applyFieldSelection(doc as T, selectObj)
   }
 
   // --- Indexing ---
@@ -428,7 +629,7 @@ export class Model<T extends Record<string, any>> {
   // Helper to efficiently find documents using indexes when possible
   private async _findDocumentsUsingIndexes(query: Query<T>): Promise<T[]> {
     const keys = Object.keys(query)
-    const queryRecord = query as Record<string, any>
+    const queryRecord = query as unknown as Record<string, unknown>
 
     // Return copy of all documents if no query (to avoid mutation during iteration)
     if (keys.length === 0) return await this._storage.getAll()
@@ -454,7 +655,7 @@ export class Model<T extends Record<string, any>> {
 
   // --- Query Matching ---
   // Helper for ObjectId comparison (defined once, not per document)
-  private _compareValues(a: any, b: any): boolean {
+  private _compareValues(a: unknown, b: unknown): boolean {
     // Fast path for primitives (most common case)
     if (typeof a !== 'object' && typeof b !== 'object') {
       return a === b
@@ -470,6 +671,25 @@ export class Model<T extends Record<string, any>> {
   }
 
   private _matches(doc: T, query: Query<T>): boolean {
+    // Check for top-level logical operators first
+    if ('$or' in query) {
+      const conditions = (query as { $or: Query<T>[] }).$or
+      if (!Array.isArray(conditions)) return false
+      return conditions.some(condition => this._matches(doc, condition))
+    }
+
+    if ('$and' in query) {
+      const conditions = (query as { $and: Query<T>[] }).$and
+      if (!Array.isArray(conditions)) return false
+      return conditions.every(condition => this._matches(doc, condition))
+    }
+
+    if ('$nor' in query) {
+      const conditions = (query as { $nor: Query<T>[] }).$nor
+      if (!Array.isArray(conditions)) return false
+      return !conditions.some(condition => this._matches(doc, condition))
+    }
+
     return Object.entries(query).every(([key, value]) => {
       const field = doc[key as keyof T]
 
@@ -493,7 +713,7 @@ export class Model<T extends Record<string, any>> {
         typeof value === 'object' &&
         value !== null &&
         !Array.isArray(value) &&
-        !(value instanceof ObjectId)
+        !((value as any) instanceof ObjectId)
       ) {
         return Object.entries(value).every(([op, v]) => {
           switch (op) {
@@ -519,12 +739,51 @@ export class Model<T extends Record<string, any>> {
               return v === true ? field !== undefined : field === undefined
             case '$size':
               return Array.isArray(field) && field.length === v
+            case '$not':
+              // Handle $not operator - negates the nested operators
+              if (typeof v === 'object' && v !== null && !Array.isArray(v)) {
+                return !Object.entries(v).every(([notOp, notV]) => {
+                  switch (notOp) {
+                    case '$eq':
+                      return this._compareValues(field, notV)
+                    case '$ne':
+                      return field !== notV
+                    case '$in':
+                      return Array.isArray(notV) && notV.includes(field)
+                    case '$nin':
+                      return Array.isArray(notV) && !notV.includes(field)
+                    case '$gt':
+                      return (
+                        (field as unknown as number | Date) > (notV as unknown as number | Date)
+                      )
+                    case '$gte':
+                      return (
+                        (field as unknown as number | Date) >= (notV as unknown as number | Date)
+                      )
+                    case '$lt':
+                      return (
+                        (field as unknown as number | Date) < (notV as unknown as number | Date)
+                      )
+                    case '$lte':
+                      return (
+                        (field as unknown as number | Date) <= (notV as unknown as number | Date)
+                      )
+                    case '$regex':
+                      return new RegExp(notV as string).test(String(field))
+                    case '$exists':
+                      return notV === true ? field !== undefined : field === undefined
+                    default:
+                      return false
+                  }
+                })
+              }
+              return !this._compareValues(field, v)
             case '$elemMatch':
               if (!Array.isArray(field)) return false
-              return field.some((item: any) => {
+              return field.some((item: unknown) => {
                 if (typeof item !== 'object' || item === null) return false
-                return Object.entries(v as Record<string, any>).every(([subKey, subValue]) => {
-                  const subField = item[subKey]
+                return Object.entries(v as Record<string, unknown>).every(([subKey, subValue]) => {
+                  const subField = (item as Record<string, unknown>)[subKey]
                   // Support operators in elemMatch
                   if (
                     typeof subValue === 'object' &&
@@ -712,16 +971,16 @@ export class Model<T extends Record<string, any>> {
 
     // Add discriminator key if this is a discriminator model
     if (this._discriminatorKey && this._discriminatorValue) {
-      const docWithDiscriminator = doc as Record<string, any>
+      const docWithDiscriminator = doc as unknown as Record<string, unknown>
       docWithDiscriminator[this._discriminatorKey] = this._discriminatorValue
     }
 
-    this._ensureId(doc)
-    this._applyDefaults(doc)
-    this._applyTimestamps(doc, 'create')
+    this._ensureId(doc as T)
+    this._applyDefaults(doc as T)
+    this._applyTimestamps(doc as T, 'create')
     await this._validateDocument(doc as T)
     this._checkUniqueConstraints(doc as T)
-    await this._executePreHooks('save', { doc })
+    await this._executePreHooks('save', { doc: doc as T })
 
     const fullDoc = doc as T
     await this._storage.add(fullDoc)
@@ -741,13 +1000,13 @@ export class Model<T extends Record<string, any>> {
 
       // Add discriminator key if this is a discriminator model
       if (this._discriminatorKey && this._discriminatorValue) {
-        const docWithDiscriminator = doc as Record<string, any>
+        const docWithDiscriminator = doc as unknown as Record<string, unknown>
         docWithDiscriminator[this._discriminatorKey] = this._discriminatorValue
       }
 
-      this._ensureId(doc)
-      this._applyDefaults(doc)
-      this._applyTimestamps(doc, 'create')
+      this._ensureId(doc as T)
+      this._applyDefaults(doc as T)
+      this._applyTimestamps(doc as T, 'create')
       await this._validateDocument(doc as T)
     }
 
@@ -866,7 +1125,7 @@ export class Model<T extends Record<string, any>> {
 
       // $set
       if (updateOp.$set) {
-        const docAsRecord = doc as Record<string, any>
+        const docAsRecord = doc as unknown as Record<string, unknown>
         for (const [key, value] of Object.entries(updateOp.$set)) {
           docAsRecord[key] = value
           modified = true
@@ -883,7 +1142,7 @@ export class Model<T extends Record<string, any>> {
 
       // $inc
       if (updateOp.$inc) {
-        const docAsRecord = doc as Record<string, any>
+        const docAsRecord = doc as unknown as Record<string, unknown>
         for (const [key, value] of Object.entries(updateOp.$inc)) {
           const currentVal = docAsRecord[key]
           docAsRecord[key] = Number(currentVal) + Number(value)
@@ -893,7 +1152,7 @@ export class Model<T extends Record<string, any>> {
 
       // $dec
       if (updateOp.$dec) {
-        const docAsRecord = doc as Record<string, any>
+        const docAsRecord = doc as unknown as Record<string, unknown>
         for (const [key, value] of Object.entries(updateOp.$dec)) {
           const currentVal = docAsRecord[key]
           docAsRecord[key] = Number(currentVal) - Number(value)
@@ -903,7 +1162,7 @@ export class Model<T extends Record<string, any>> {
 
       // $push
       if (updateOp.$push) {
-        const docAsRecord = doc as Record<string, any>
+        const docAsRecord = doc as unknown as Record<string, unknown>
         for (const [key, value] of Object.entries(updateOp.$push)) {
           const arr = docAsRecord[key]
           if (Array.isArray(arr)) {
@@ -915,7 +1174,7 @@ export class Model<T extends Record<string, any>> {
 
       // $pull
       if (updateOp.$pull) {
-        const docAsRecord = doc as Record<string, any>
+        const docAsRecord = doc as unknown as Record<string, unknown>
         for (const [key, value] of Object.entries(updateOp.$pull)) {
           const arr = docAsRecord[key]
           if (Array.isArray(arr)) {
@@ -930,7 +1189,7 @@ export class Model<T extends Record<string, any>> {
 
       // $addToSet
       if (updateOp.$addToSet) {
-        const docAsRecord = doc as Record<string, any>
+        const docAsRecord = doc as unknown as Record<string, unknown>
         for (const [key, value] of Object.entries(updateOp.$addToSet)) {
           const arr = docAsRecord[key]
           if (Array.isArray(arr)) {
@@ -944,7 +1203,7 @@ export class Model<T extends Record<string, any>> {
 
       // $pop
       if (updateOp.$pop) {
-        const docAsRecord = doc as Record<string, any>
+        const docAsRecord = doc as unknown as Record<string, unknown>
         for (const [key, direction] of Object.entries(updateOp.$pop)) {
           const arr = docAsRecord[key]
           if (Array.isArray(arr) && arr.length > 0) {
@@ -970,7 +1229,7 @@ export class Model<T extends Record<string, any>> {
       }
     } else {
       // Direct field updates
-      const docAsRecord = doc as Record<string, any>
+      const docAsRecord = doc as Record<string, unknown>
       for (const [key, value] of Object.entries(update)) {
         docAsRecord[key] = value
         modified = true
@@ -1006,7 +1265,7 @@ export class Model<T extends Record<string, any>> {
     if (!docToUpdate) {
       // Handle upsert: create document if it doesn't exist
       if (options?.upsert) {
-        const newDoc: any = {}
+        const newDoc = {} as Record<string, unknown>
 
         // Apply query fields as initial values
         for (const [key, value] of Object.entries(query)) {
@@ -1016,10 +1275,10 @@ export class Model<T extends Record<string, any>> {
         }
 
         // Apply the update
-        this._applyUpdate(newDoc, update)
+        this._applyUpdate(newDoc as T, update)
 
         // Create the document
-        await this.create(newDoc)
+        await this.create(newDoc as DeepPartial<T>)
 
         await this._executePostHooks('update', {
           query,
@@ -1168,7 +1427,7 @@ export class Model<T extends Record<string, any>> {
     if (!docToUpdate) {
       // Handle upsert: create document if it doesn't exist
       if (options.upsert) {
-        const newDoc: any = {}
+        const newDoc = {} as Record<string, unknown>
 
         // Apply query fields as initial values
         for (const [key, value] of Object.entries(query)) {
@@ -1178,10 +1437,10 @@ export class Model<T extends Record<string, any>> {
         }
 
         // Apply the update
-        this._applyUpdate(newDoc, update)
+        this._applyUpdate(newDoc as T, update)
 
         // Create the document
-        const created = await this.create(newDoc)
+        const created = await this.create(newDoc as DeepPartial<T>)
         return returnBefore ? null : created
       }
 
@@ -1292,23 +1551,41 @@ export class Model<T extends Record<string, any>> {
     return Array.from(uniqueValues)
   }
 
-  findById(id: any): DocumentQueryBuilder<T> {
+  findById(id: string | ObjectId): DocumentQueryBuilder<T> {
     return this.findOne({ _id: id } as Query<T>)
   }
 
   findByIdAndUpdate(
-    id: any,
+    id: string | ObjectId,
     update: Update<T>,
     options?: { returnDocument?: 'before' | 'after'; new?: boolean; upsert?: boolean }
   ): DocumentQueryBuilder<T> {
     return this.findOneAndUpdate({ _id: id } as Query<T>, update, options)
   }
 
-  findByIdAndDelete(id: any): DocumentQueryBuilder<T> {
+  findByIdAndDelete(id: string | ObjectId): DocumentQueryBuilder<T> {
     return this.findOneAndDelete({ _id: id } as Query<T>)
   }
 
-  discriminator<D extends Record<string, any>>(name: string, schema: Schema<D>): Model<T & D> {
+  async aggregate<R = Record<string, unknown>>(pipeline: unknown[]): Promise<R[]> {
+    await this._ensureStorageReady()
+
+    // Check if storage supports native aggregation
+    const storageWithAggregate = this._storage as unknown as {
+      aggregate?: (pipeline: unknown[]) => Promise<R[]>
+    }
+    if (storageWithAggregate.aggregate) {
+      return storageWithAggregate.aggregate(pipeline)
+    }
+
+    // Fall back to JS aggregation engine
+    const { AggregationEngine } = await import('./aggregation-engine.js')
+    const engine = new AggregationEngine(this, this._database)
+    const results = await engine.execute(pipeline as unknown as AggregationPipeline<T>)
+    return results as R[]
+  }
+
+  discriminator<D extends object>(name: string, schema: Schema<D>): Model<T & D> {
     if (!this._schema) {
       throw new Error('Cannot create discriminator without base schema')
     }
@@ -1318,7 +1595,7 @@ export class Model<T extends Record<string, any>> {
     const discriminatorFields = schema.getAllFieldOptions()
 
     // Create merged definition
-    const mergedDefinition: Record<string, any> = {}
+    const mergedDefinition: Record<string, unknown> = {}
 
     // Copy base fields
     for (const [fieldName, options] of baseFields.entries()) {

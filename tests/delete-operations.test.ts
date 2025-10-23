@@ -82,7 +82,7 @@ test('Delete Operations', async t => {
     assert.strictEqual(result.deletedCount, 2) // Charlie (40) and Eve (35)
 
     const remaining = await User.find()
-    assert.ok(remaining.every(u => u.age < 35))
+    assert.ok(remaining.every(u => (u.age as number) < 35))
   })
 
   await t.test('should delete using indexed query', async () => {

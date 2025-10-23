@@ -219,11 +219,11 @@ process.on('SIGINT', async () => {
 
 | Operation      | Indexed | Non-Indexed | Speedup   |
 | -------------- | ------- | ----------- | --------- |
-| Equality query | <0.01ms | 2.08ms      | **482x**  |
-| Compound query | <0.01ms | 2.08ms      | **1306x** |
-| count()        | 11.87ms | 25.81ms     | **2x**    |
-| update()       | 0.03ms  | 2.13ms      | **85x**   |
-| Lean query     | 0.63ms  | 11.87ms     | **18.4x** |
+| Equality query | <0.01ms | 2.01ms      | **431x**  |
+| Compound query | <0.01ms | 2.01ms      | **1147x** |
+| count()        | 11.60ms | 24.42ms     | **2x**    |
+| update()       | 0.02ms  | 2.09ms      | **83x**   |
+| Lean query     | 0.70ms  | 12.00ms     | **17.5x** |
 
 See [PERFORMANCE.md](PERFORMANCE.md) for detailed benchmarks.
 
