@@ -271,7 +271,7 @@ const db = connect({
 })
 ```
 
-**SQLite** - Balanced performance:
+**SQLite** - Balanced performance with native SQL execution:
 
 ```typescript
 // Use for: Production, small-medium datasets
@@ -280,6 +280,36 @@ const db = connect({
   sqlite: { dataPath: './data' }
 })
 ```
+
+### SQLite Native Query Execution
+
+SQLite storage executes queries directly in SQL rather than loading all documents into memory. This provides significant benefits:
+
+**When Native SQL Helps Most:**
+
+- Large datasets where you only need a subset of documents
+- Queries with LIMIT/OFFSET pagination
+- Sorting large result sets
+- Complex WHERE conditions
+
+```typescript
+// This query runs entirely in SQLite:
+// SELECT data FROM users WHERE json_extract(data, '$.status') = 'active'
+//   ORDER BY json_extract(data, '$.createdAt') DESC LIMIT 10 OFFSET 20
+const users = await User.find(
+  { status: 'active' },
+  { sort: { createdAt: -1 }, limit: 10, skip: 20 }
+)
+// Only 10 documents are loaded into memory!
+```
+
+**Memory Efficiency:**
+
+| Operation | Without Native SQL | With Native SQL |
+| --------- | ------------------ | --------------- |
+| find() with limit 10 of 100k docs | Loads 100k docs | Loads 10 docs |
+| Pagination (page 50, size 20) | Loads all docs | Loads 20 docs |
+| Sort + limit | Full sort in memory | SQL handles it |
 
 **File** - Simple persistence:
 

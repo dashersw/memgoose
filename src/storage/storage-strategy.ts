@@ -1,6 +1,21 @@
 // Query matching function type
 export type QueryMatcher<T> = (doc: T) => boolean
 
+// Import types for native SQL methods
+import type { Query, QueryOptions, Update } from '../model'
+import type { AggregationPipeline } from '../aggregation'
+
+// Schema record type for tracking
+export type SchemaRecord = {
+  modelName: string
+  version: string
+  definition: Record<string, unknown>
+  indexes: Array<{ fields: string[]; unique: boolean }>
+  options: Record<string, unknown>
+  createdAt: Date
+  updatedAt: Date
+}
+
 // Storage Strategy Interface - enables pluggable storage backends
 export interface StorageStrategy<T extends object = Record<string, unknown>> {
   // Initialize the storage (load from disk, connect to DB, etc.)
@@ -35,12 +50,24 @@ export interface StorageStrategy<T extends object = Record<string, unknown>> {
   // Unique constraint checking
   checkUniqueConstraints(doc: Partial<T>, excludeDoc?: T): void
 
-  // Efficient querying using indexes
+  // Efficient querying using indexes (now async for consistency)
   findDocuments(
     matcher: QueryMatcher<T>,
     indexHint?: {
       fields: Array<keyof T>
       values: Record<string, unknown>
     }
-  ): T[]
+  ): Promise<T[]>
+
+  // Optional SQL-native methods (for SQL-capable storage strategies like SQLite)
+  // These methods allow direct SQL execution, bypassing JavaScript query matching
+  queryNative?(query: Query<T>, options?: QueryOptions<T>): Promise<T[]>
+  updateNative?(query: Query<T>, update: Update<T>): Promise<{ modifiedCount: number }>
+  deleteNative?(query: Query<T>): Promise<{ deletedCount: number }>
+  countNative?(query: Query<T>): Promise<number>
+  aggregateNative?<R = Record<string, unknown>>(pipeline: AggregationPipeline<T>): Promise<R[]>
+
+  // Optional schema tracking methods (for persistent storage strategies)
+  recordSchema?(schemaData: SchemaRecord): Promise<void>
+  getSchema?(modelName: string): Promise<SchemaRecord | null>
 }

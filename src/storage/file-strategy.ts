@@ -1,4 +1,4 @@
-import { StorageStrategy, QueryMatcher } from './storage-strategy'
+import { StorageStrategy, QueryMatcher, SchemaRecord } from './storage-strategy'
 import * as fs from 'fs'
 import * as path from 'path'
 import { promisify } from 'util'
@@ -659,13 +659,13 @@ export class FileStorageStrategy<T extends object> implements StorageStrategy<T>
   }
 
   // Efficient querying using query indexes
-  findDocuments(
+  async findDocuments(
     matcher: QueryMatcher<T>,
     indexHint?: {
       fields: Array<keyof T>
       values: Record<string, unknown>
     }
-  ): T[] {
+  ): Promise<T[]> {
     // If no index hint, use linear scan
     if (!indexHint) {
       return this._data.filter(matcher)
@@ -700,5 +700,66 @@ export class FileStorageStrategy<T extends object> implements StorageStrategy<T>
 
     // Fallback: linear scan
     return this._data.filter(matcher)
+  }
+
+  // ============================================================================
+  // SCHEMA TRACKING METHODS
+  // ============================================================================
+
+  /**
+   * Record schema information in a JSON file
+   * This is called automatically when a model is initialized
+   */
+  async recordSchema(schemaData: {
+    modelName: string
+    version: string
+    definition: Record<string, unknown>
+    indexes: Array<{ fields: string[]; unique: boolean }>
+    options: Record<string, unknown>
+  }): Promise<void> {
+    const schemaFilePath = path.join(this._dataPath, `${this._modelName}.schema.json`)
+    const now = new Date().toISOString()
+
+    let existingSchema: SchemaRecord | null = null
+    try {
+      const content = await readFile(schemaFilePath, 'utf-8')
+      existingSchema = JSON.parse(content)
+    } catch {
+      // Schema file doesn't exist - will create new one
+    }
+
+    const schemaRecord: SchemaRecord = {
+      modelName: this._modelName,
+      version: schemaData.version,
+      definition: schemaData.definition,
+      indexes: schemaData.indexes,
+      options: schemaData.options,
+      createdAt: existingSchema?.createdAt || new Date(now),
+      updatedAt: new Date(now)
+    }
+
+    // Only write if version changed or doesn't exist
+    if (!existingSchema || existingSchema.version !== schemaData.version) {
+      await writeFile(schemaFilePath, JSON.stringify(schemaRecord, null, 2), 'utf-8')
+    }
+  }
+
+  /**
+   * Retrieve schema information for a model
+   */
+  async getSchema(modelName: string): Promise<SchemaRecord | null> {
+    const schemaFilePath = path.join(this._dataPath, `${modelName}.schema.json`)
+
+    try {
+      const content = await readFile(schemaFilePath, 'utf-8')
+      const data = JSON.parse(content)
+      return {
+        ...data,
+        createdAt: new Date(data.createdAt),
+        updatedAt: new Date(data.updatedAt)
+      }
+    } catch {
+      return null
+    }
   }
 }

@@ -1,4 +1,4 @@
-import { StorageStrategy, QueryMatcher } from './storage-strategy'
+import { StorageStrategy, QueryMatcher, SchemaRecord } from './storage-strategy'
 
 // Index metadata structure
 type IndexMetadata<T> = {
@@ -154,14 +154,14 @@ export class MemoryStorageStrategy<T extends object> implements StorageStrategy<
     }
   }
 
-  // Efficient querying using indexes
-  findDocuments(
+  // Efficient querying using indexes (now async for consistency)
+  async findDocuments(
     matcher: QueryMatcher<T>,
     indexHint?: {
       fields: Array<keyof T>
       values: Record<string, unknown>
     }
-  ): T[] {
+  ): Promise<T[]> {
     // If no index hint, use linear scan (filter directly, no copy needed)
     if (!indexHint) {
       return this._data.filter(matcher)
@@ -196,5 +196,29 @@ export class MemoryStorageStrategy<T extends object> implements StorageStrategy<
 
     // Fallback: linear scan
     return this._data.filter(matcher)
+  }
+
+  // ============================================================================
+  // SCHEMA TRACKING METHODS (Stubs - memory storage is not persistent)
+  // ============================================================================
+
+  /**
+   * Memory storage doesn't persist schemas, so this is a no-op
+   */
+  async recordSchema(_schemaData: {
+    modelName: string
+    version: string
+    definition: Record<string, unknown>
+    indexes: Array<{ fields: string[]; unique: boolean }>
+    options: Record<string, unknown>
+  }): Promise<void> {
+    // No-op: memory storage is not persistent
+  }
+
+  /**
+   * Memory storage doesn't persist schemas, so this always returns null
+   */
+  async getSchema(_modelName: string): Promise<SchemaRecord | null> {
+    return null
   }
 }

@@ -90,10 +90,25 @@ export class Database {
 
     // Initialize storage asynchronously and pass promise to model
     // Model will automatically wait for this on first operation
-    const initPromise = storage.initialize().catch(err => {
-      console.error(`Error initializing storage for model ${name}:`, err)
-      throw err
-    })
+    const initPromise = storage
+      .initialize()
+      .then(async () => {
+        // Record schema in storage after initialization
+        if (typeof storage.recordSchema === 'function') {
+          const schemaJSON = schema.toJSON()
+          await storage.recordSchema({
+            modelName: name,
+            version: schemaJSON.version,
+            definition: schemaJSON.definition,
+            indexes: schemaJSON.indexes,
+            options: schemaJSON.options
+          })
+        }
+      })
+      .catch(err => {
+        console.error(`Error initializing storage for model ${name}:`, err)
+        throw err
+      })
     model._setStorageInitPromise(initPromise)
 
     // Register TTL indexes from schema

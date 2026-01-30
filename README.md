@@ -21,7 +21,7 @@ userSchema.index('email') // O(1) lookups
 
 // Choose your storage
 connect({ storage: 'memory' })           // Testing: 0 setup, fastest
-connect({ storage: 'sqlite', ... })      // Production: ACID, persistent
+connect({ storage: 'sqlite', ... })      // Production: ACID, native SQL queries
 connect({ storage: 'wiredtiger', ... })  // Enterprise: MongoDB-grade performance
 ```
 
@@ -149,7 +149,7 @@ import { connect } from 'memgoose'
 // Memory (default, fastest)
 connect({ storage: 'memory' })
 
-// SQLite (persistent, ACID)
+// SQLite (persistent, ACID, native SQL queries)
 connect({ storage: 'sqlite', sqlite: { dataPath: './data' } })
 
 // WiredTiger (enterprise-grade)

@@ -41,10 +41,18 @@ interface StorageStrategy<T> {
   clear(): Promise<void>
   flush?(): Promise<void>
   close?(): void
+
+  // Optional: Native query methods (SQLite implements these)
+  queryNative?(query: Query<T>, options?: QueryOptions<T>): Promise<T[]>
+  updateNative?(query: Query<T>, update: Update<T>): Promise<{ modifiedCount: number }>
+  deleteNative?(query: Query<T>): Promise<{ deletedCount: number }>
+  countNative?(query: Query<T>): Promise<number>
 }
 ```
 
 This means you can switch storage backends without changing your application code!
+
+**Note:** SQLite storage implements the optional native query methods, allowing queries to execute directly in SQL for better performance with large datasets.
 
 ---
 
@@ -185,6 +193,7 @@ ACID-compliant persistent storage using SQLite.
 ### Features
 
 - ✅ ACID transactions
+- ✅ Native SQL query execution (queries run directly in SQLite)
 - ✅ Mature and stable
 - ✅ Cross-platform
 - ✅ Small footprint
@@ -244,6 +253,31 @@ WAL mode provides:
 - Faster writes
 - Crash recovery
 - Hot backups
+
+#### Native SQL Query Execution
+
+SQLite storage executes all queries directly in SQL rather than loading documents into memory:
+
+- **MongoDB-style queries** are translated to SQL `WHERE` clauses using `json_extract`
+- **Sorting, pagination** (LIMIT/OFFSET) handled natively in SQL
+- **Updates** use `json_set` and `json_remove` for efficient field modifications
+- **Aggregations** can leverage SQL-based execution
+
+This architecture provides:
+
+- Lower memory usage (documents aren't loaded until needed)
+- Better performance for large datasets with selective queries
+- Efficient sorting and pagination without loading all documents
+
+```typescript
+// This query executes entirely in SQLite:
+// SELECT data FROM users WHERE json_extract(data, '$.status') = 'active'
+//   ORDER BY json_extract(data, '$.createdAt') DESC LIMIT 10
+const users = await User.find(
+  { status: 'active' },
+  { sort: { createdAt: -1 }, limit: 10 }
+)
+```
 
 #### Native Indexes
 

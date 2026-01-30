@@ -598,4 +598,46 @@ export class Schema<T extends object = Record<string, unknown>> {
       throw new ValidationError(errors.join('; '))
     }
   }
+
+  /**
+   * Serialize schema to a JSON-compatible format for storage tracking
+   * This allows schema versions to be recorded and compared
+   */
+  toJSON(): {
+    definition: Record<string, unknown>
+    indexes: Array<{ fields: string[]; unique: boolean }>
+    options: SchemaOptions
+    version: string
+  } {
+    // Serialize field definitions
+    const definition: Record<string, unknown> = {}
+    for (const [field, options] of this._fieldOptions.entries()) {
+      definition[field as string] = { ...options }
+    }
+
+    // Serialize indexes
+    const indexes = this._indexes.map(fields => {
+      const fieldNames = (Array.isArray(fields) ? fields : [fields]).map(String)
+      const indexKey = [...fieldNames].sort().join(',')
+      const isUnique = this._uniqueIndexes?.has(indexKey) || false
+      return { fields: fieldNames, unique: isUnique }
+    })
+
+    // Generate schema version hash based on definition and indexes
+    const schemaString = JSON.stringify({ definition, indexes, options: this._options })
+    let hash = 0
+    for (let i = 0; i < schemaString.length; i++) {
+      const char = schemaString.charCodeAt(i)
+      hash = (hash << 5) - hash + char
+      hash = hash & hash // Convert to 32bit integer
+    }
+    const version = Math.abs(hash).toString(36)
+
+    return {
+      definition,
+      indexes,
+      options: this._options,
+      version
+    }
+  }
 }

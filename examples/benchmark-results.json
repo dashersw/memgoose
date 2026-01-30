@@ -9,93 +9,93 @@
   "indexPerformance": {
     "datasetSizes": {
       "1000": {
-        "noIndex": 0.39,
-        "singleIndex": 0.04,
+        "noIndex": 0.45,
+        "singleIndex": 0.07,
         "compoundIndex": 0.02
       },
       "10000": {
-        "noIndex": 2.11,
-        "singleIndex": 0.06,
-        "compoundIndex": 0.02
+        "noIndex": 1.78,
+        "singleIndex": 0.1,
+        "compoundIndex": 0.01
       },
       "100000": {
-        "noIndex": 4.73,
-        "singleIndex": 0.06,
+        "noIndex": 5.02,
+        "singleIndex": 0.08,
         "compoundIndex": 0.02
       }
     },
     "indexedVsNonIndexed": {
       "equalityQuery": {
-        "indexed": 0,
-        "nonIndexed": 2.02,
-        "speedup": 454
+        "indexed": 0.01,
+        "nonIndexed": 2.05,
+        "speedup": 369
       },
       "compoundQuery": {
         "indexed": 0,
-        "nonIndexed": 2.02,
-        "speedup": 1170
+        "nonIndexed": 2.05,
+        "speedup": 554
       },
       "findMany": {
-        "indexed": 11.69,
-        "nonIndexed": 10.98,
-        "speedup": 0.9
+        "indexed": 23.73,
+        "nonIndexed": 11.6,
+        "speedup": 0.5
       },
       "count": {
-        "indexed": 11.51,
-        "nonIndexed": 23.7,
+        "indexed": 11.29,
+        "nonIndexed": 23.96,
         "speedup": 2
       },
       "update": {
         "indexed": 0.02,
-        "nonIndexed": 2.1,
-        "speedup": 85
+        "nonIndexed": 2.17,
+        "speedup": 90
       },
       "delete": {
-        "indexed": 0.14
+        "indexed": 0.08
       },
       "leanQuery": {
-        "time": 0.78,
-        "speedup": 15.1
+        "time": 0.59,
+        "speedup": 40.4
       }
     }
   },
   "storagePerformance": {
     "insert10k": {
       "Memory": {
-        "time": 29,
-        "throughput": 344828
+        "time": 40,
+        "throughput": 250000
       },
       "File": {
-        "time": 454,
-        "throughput": 22026
+        "time": 493,
+        "throughput": 20284
       },
       "SQLite": {
-        "time": 89,
-        "throughput": 112360
+        "time": 84,
+        "throughput": 119048
       },
       "WiredTiger": {
-        "time": 66,
-        "throughput": 151515
+        "time": 67,
+        "throughput": 149254
       }
     },
     "indexedQuery100k": {
-      "Memory": 0.06,
-      "File": 0.16,
-      "SQLite": 0.2,
-      "WiredTiger": 0.16
+      "Memory": 0.05,
+      "File": 0.18,
+      "SQLite": 0.46,
+      "WiredTiger": 0.12
     },
     "bulkInsert100k": {
       "Memory": {
-        "time": 248,
-        "throughput": 403226
+        "time": 274,
+        "throughput": 364964
       },
       "SQLite": {
-        "time": 743,
-        "throughput": 134590
+        "time": 703,
+        "throughput": 142248
       },
       "WiredTiger": {
-        "time": 497,
-        "throughput": 201207
+        "time": 489,
+        "throughput": 204499
       }
     }
   },
@@ -103,52 +103,52 @@
     "findOne": 0.06,
     "find10": 0.07,
     "find100": 0.06,
-    "countDocuments": 11.55,
-    "distinct": 1.56,
+    "countDocuments": 11.25,
+    "distinct": 1.7,
     "updateOne": 0.09,
-    "updateMany1000": 108.63,
+    "updateMany1000": 106.65,
     "deleteOne": 0.13,
-    "insertMany1000": 42.37
+    "insertMany1000": 39.19
   },
   "leanPerformance": {
     "findOne": {
-      "regular": 0.055,
-      "lean": 0.013,
-      "speedup": 4.2
+      "regular": 0.045,
+      "lean": 0.01,
+      "speedup": 4.4
     },
     "find100": {
-      "regular": 0.11,
+      "regular": 0.1,
       "lean": 0.03,
-      "speedup": 4.3
+      "speedup": 3.9
     },
     "find1000": {
-      "regular": 0.6,
+      "regular": 0.56,
       "lean": 0.01,
-      "speedup": 47.1
+      "speedup": 46.8
     }
   },
   "storageComparison": {
     "File": {
-      "insert10k": 454,
-      "query": 0.01,
-      "update": 0.35,
-      "delete": 0.1
+      "insert10k": 493,
+      "query": 0.02,
+      "update": 0.38,
+      "delete": 0.11
     },
     "SQLite": {
-      "insert10k": 89,
-      "query": 0.01,
-      "update": 0.25,
-      "delete": 0.13
+      "insert10k": 84,
+      "query": 0.06,
+      "update": 0.37,
+      "delete": 0.14
     },
     "WiredTiger": {
-      "insert10k": 66,
+      "insert10k": 67,
       "query": 0.01,
       "update": 1.26,
-      "delete": 0.38
+      "delete": 0.43
     },
     "Memory": {
-      "insert10k": 29,
-      "query": 0.06,
+      "insert10k": 40,
+      "query": 0.05,
       "update": 0.5,
       "delete": 0.5
     }

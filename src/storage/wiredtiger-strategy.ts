@@ -1,4 +1,4 @@
-import { StorageStrategy, QueryMatcher } from './storage-strategy'
+import { StorageStrategy, QueryMatcher, SchemaRecord } from './storage-strategy'
 import * as path from 'path'
 import * as fs from 'fs'
 
@@ -186,6 +186,12 @@ export class WiredTigerStorageStrategy<T extends object> implements StorageStrat
         if (!this._cursor) {
           throw new Error('Failed to create cursor')
         }
+
+        // Create schema tracking table
+        this._session.createTable(
+          '_schema',
+          'key_format=S,value_format=S,' + 'internal_page_max=16KB,' + 'leaf_page_max=32KB'
+        )
 
         // Load all documents into memory
         await this._loadAllDocuments()
@@ -555,13 +561,13 @@ export class WiredTigerStorageStrategy<T extends object> implements StorageStrat
   }
 
   // Efficient querying using indexes
-  findDocuments(
+  async findDocuments(
     matcher: QueryMatcher<T>,
     indexHint?: {
       fields: Array<keyof T>
       values: Record<string, unknown>
     }
-  ): T[] {
+  ): Promise<T[]> {
     // If no index hint, use in-memory linear scan
     if (!indexHint) {
       return this._data.filter(matcher)
@@ -605,6 +611,109 @@ export class WiredTigerStorageStrategy<T extends object> implements StorageStrat
       } catch (error) {
         console.warn('Warning: Checkpoint failed:', error)
       }
+    }
+  }
+
+  // ============================================================================
+  // SCHEMA TRACKING METHODS
+  // ============================================================================
+
+  /**
+   * Record schema information in the _schema table
+   * This is called automatically when a model is initialized
+   */
+  async recordSchema(schemaData: {
+    modelName: string
+    version: string
+    definition: Record<string, unknown>
+    indexes: Array<{ fields: string[]; unique: boolean }>
+    options: Record<string, unknown>
+  }): Promise<void> {
+    if (!this._session || !this._connection) {
+      throw new Error('Storage not initialized')
+    }
+
+    const now = new Date().toISOString()
+
+    try {
+      // Open cursor for schema table
+      const schemaCursor = this._session.openCursor('_schema')
+
+      // Check if schema exists
+      const found = schemaCursor.search(this._modelName)
+      let shouldUpdate = false
+
+      if (found !== null) {
+        const existingData = JSON.parse(found.value)
+        if (existingData.version !== schemaData.version) {
+          shouldUpdate = true
+        }
+      }
+
+      if (found !== null && shouldUpdate) {
+        // Update existing schema
+        const updatedRecord = {
+          ...schemaData,
+          updatedAt: now,
+          createdAt: JSON.parse(found.value).createdAt
+        }
+        schemaCursor.set(this._modelName, JSON.stringify(updatedRecord))
+        schemaCursor.update()
+      } else if (found === null) {
+        // Insert new schema record
+        const newRecord = {
+          ...schemaData,
+          createdAt: now,
+          updatedAt: now
+        }
+        schemaCursor.set(this._modelName, JSON.stringify(newRecord))
+        schemaCursor.insert()
+      }
+
+      schemaCursor.close()
+    } catch (error) {
+      console.warn('Warning: Failed to record schema:', error)
+    }
+  }
+
+  /**
+   * Retrieve schema information for a model
+   */
+  async getSchema(modelName: string): Promise<{
+    modelName: string
+    version: string
+    definition: Record<string, unknown>
+    indexes: Array<{ fields: string[]; unique: boolean }>
+    options: Record<string, unknown>
+    createdAt: Date
+    updatedAt: Date
+  } | null> {
+    if (!this._session || !this._connection) {
+      throw new Error('Storage not initialized')
+    }
+
+    try {
+      // Open cursor for schema table
+      const schemaCursor = this._session.openCursor('_schema')
+
+      const found = schemaCursor.search(modelName)
+      schemaCursor.close()
+
+      if (found === null) return null
+
+      const data = JSON.parse(found.value)
+      return {
+        modelName,
+        version: data.version,
+        definition: data.definition,
+        indexes: data.indexes,
+        options: data.options,
+        createdAt: new Date(data.createdAt),
+        updatedAt: new Date(data.updatedAt)
+      }
+    } catch (error) {
+      console.warn('Warning: Failed to get schema:', error)
+      return null
     }
   }
 

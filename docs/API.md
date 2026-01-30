@@ -182,6 +182,38 @@ try {
 }
 ```
 
+#### `schema.toJSON()`
+
+Serializes the schema to a JSON-compatible format for storage tracking and version comparison.
+
+**Returns:** `{ definition, indexes, options, version }`
+
+- `definition`: `Record<string, unknown>` - Serialized field definitions
+- `indexes`: `Array<{ fields: string[], unique: boolean }>` - Index definitions
+- `options`: `SchemaOptions` - Schema options (timestamps, etc.)
+- `version`: `string` - Hash-based version identifier for the schema
+
+**Example:**
+
+```typescript
+const userSchema = new Schema({
+  name: { type: String, required: true },
+  email: { type: String, unique: true }
+})
+userSchema.index('email')
+
+const json = userSchema.toJSON()
+console.log(json.version) // "abc123" (schema version hash)
+console.log(json.indexes) // [{ fields: ['email'], unique: true }]
+console.log(json.definition) // { name: { type: 'String', required: true }, ... }
+```
+
+**Use Cases:**
+
+- Schema version tracking for migrations
+- Comparing schema changes between deployments
+- Storing schema metadata alongside data
+
 ### Schema Properties
 
 #### `schema.methods`
@@ -986,8 +1018,16 @@ interface StorageStrategy<T> {
   clear(): Promise<void>
   flush?(): Promise<void>
   close?(): void
+
+  // Optional: Native query methods (implemented by SQLite storage)
+  queryNative?(query: Query<T>, options?: QueryOptions<T>): Promise<T[]>
+  updateNative?(query: Query<T>, update: Update<T>): Promise<{ modifiedCount: number }>
+  deleteNative?(query: Query<T>): Promise<{ deletedCount: number }>
+  countNative?(query: Query<T>): Promise<number>
 }
 ```
+
+**Note:** The optional native query methods allow storage backends to execute queries directly (e.g., in SQL) rather than loading all documents into memory. SQLite storage implements these for improved performance.
 
 ### MemoryStorageStrategy
 
@@ -1032,7 +1072,7 @@ const storage = new FileStorageStrategy<User>({
 
 ### SqliteStorageStrategy
 
-SQLite-based persistent storage.
+SQLite-based persistent storage with native SQL query execution.
 
 **Constructor Options:**
 
@@ -1040,6 +1080,13 @@ SQLite-based persistent storage.
 - `modelName`: `string` - Model name
 
 **Requires:** `better-sqlite3` peer dependency
+
+**Features:**
+
+- Implements native query methods (`queryNative`, `updateNative`, `deleteNative`, `countNative`)
+- Queries execute directly in SQL using `json_extract` for JSON document fields
+- Sorting, pagination, and filtering handled at the SQL level
+- Schema version tracking with automatic `_schema` table
 
 **Example:**
 

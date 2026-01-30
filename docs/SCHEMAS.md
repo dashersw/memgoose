@@ -19,6 +19,7 @@ Complete guide to defining schemas in memgoose.
   - [Static Methods](#static-methods)
   - [Loading Methods from a Class](#loading-methods-from-a-class)
   - [Type-Safe Methods (TypeScript)](#type-safe-methods-typescript)
+- [Schema Serialization](#schema-serialization)
 
 ---
 
@@ -1150,6 +1151,91 @@ userSchema.statics.findByEmail = function (email: string) {
 }
 
 const User = model('User', userSchema) as UserModel
+```
+
+---
+
+## Schema Serialization
+
+Schemas can be serialized to JSON format for version tracking, migration planning, and metadata storage.
+
+### `schema.toJSON()`
+
+Converts the schema to a JSON-compatible format.
+
+```typescript
+const userSchema = new Schema({
+  name: { type: String, required: true },
+  email: { type: String, unique: true },
+  age: { type: Number, min: 0 }
+})
+
+userSchema.index('email')
+userSchema.index(['name', 'age'])
+
+const json = userSchema.toJSON()
+```
+
+**Returns:**
+
+```typescript
+{
+  definition: {
+    name: { type: 'String', required: true },
+    email: { type: 'String', unique: true },
+    age: { type: 'Number', min: 0 }
+  },
+  indexes: [
+    { fields: ['email'], unique: true },
+    { fields: ['name', 'age'], unique: false }
+  ],
+  options: { timestamps: false },
+  version: 'abc123xyz'  // Hash-based version identifier
+}
+```
+
+### Use Cases
+
+**Schema Version Tracking:**
+
+```typescript
+// Store schema version with your data
+const schemaInfo = userSchema.toJSON()
+console.log(`Schema version: ${schemaInfo.version}`)
+
+// Compare versions to detect changes
+if (currentVersion !== schemaInfo.version) {
+  console.log('Schema has changed - migration may be needed')
+}
+```
+
+**Migration Planning:**
+
+```typescript
+// Compare old and new schema definitions
+const oldSchema = loadStoredSchema()
+const newSchema = userSchema.toJSON()
+
+// Find new fields
+const newFields = Object.keys(newSchema.definition)
+  .filter(field => !(field in oldSchema.definition))
+
+// Find removed fields
+const removedFields = Object.keys(oldSchema.definition)
+  .filter(field => !(field in newSchema.definition))
+```
+
+**Schema Documentation:**
+
+```typescript
+// Export schema structure for documentation
+const schemas = {
+  User: userSchema.toJSON(),
+  Product: productSchema.toJSON(),
+  Order: orderSchema.toJSON()
+}
+
+fs.writeFileSync('schema-docs.json', JSON.stringify(schemas, null, 2))
 ```
 
 ---

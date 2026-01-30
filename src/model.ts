@@ -626,8 +626,22 @@ export class Model<T extends object = Record<string, unknown>> {
     await this._storage.createIndex(fields, options)
   }
 
+  // Helper to check if storage supports native SQL operations
+  private _hasNativeQuery(): boolean {
+    return typeof (this._storage as any).queryNative === 'function'
+  }
+
   // Helper to efficiently find documents using indexes when possible
-  private async _findDocumentsUsingIndexes(query: Query<T>): Promise<T[]> {
+  private async _findDocumentsUsingIndexes(
+    query: Query<T>,
+    options?: QueryOptions<T>
+  ): Promise<T[]> {
+    // NEW: Check if storage supports native queries
+    if (this._hasNativeQuery()) {
+      return await (this._storage as any).queryNative(query, options)
+    }
+
+    // EXISTING: Fall back to JavaScript-based querying
     const keys = Object.keys(query)
     const queryRecord = query as unknown as Record<string, unknown>
 
@@ -646,11 +660,11 @@ export class Model<T extends object = Record<string, unknown>> {
         fields: keys as Array<keyof T>,
         values: queryRecord
       }
-      return this._storage.findDocuments(matcher, indexHint)
+      return await this._storage.findDocuments(matcher, indexHint)
     }
 
     // No index hint - storage will use efficient linear scan
-    return this._storage.findDocuments(matcher)
+    return await this._storage.findDocuments(matcher)
   }
 
   // --- Query Matching ---
@@ -908,6 +922,27 @@ export class Model<T extends object = Record<string, unknown>> {
       query = { ...query, [this._discriminatorKey]: this._discriminatorValue } as Query<T>
     }
 
+    // NEW: If storage has native query support, use it with options directly
+    if (this._hasNativeQuery()) {
+      const results = await this._findDocumentsUsingIndexes(query, options)
+
+      // Apply virtuals unless lean mode
+      let finalResults: Array<T & Document> = options.lean
+        ? results.map(r => r as T & Document)
+        : results.map(doc => this._applyVirtuals(doc))
+
+      // Apply field selection if specified
+      if (options.select) {
+        finalResults = finalResults.map(
+          doc => this._applyFieldSelection(doc, options.select) as T & Document
+        )
+      }
+
+      await this._executePostHooks('find', { query, results: finalResults })
+      return finalResults
+    }
+
+    // EXISTING: JavaScript-based query execution
     const keys = Object.keys(query)
 
     // Get base results
@@ -922,7 +957,7 @@ export class Model<T extends object = Record<string, unknown>> {
       results = await this._findDocumentsUsingIndexes(query)
     }
 
-    // Apply options
+    // Apply options in JavaScript
     if (options.sort) {
       const sortEntries = Object.entries(options.sort)
       results.sort((a, b) => {
@@ -1058,6 +1093,21 @@ export class Model<T extends object = Record<string, unknown>> {
     await this._ensureStorageReady()
     await this._executePreHooks('delete', { query })
 
+    // NEW: Use native delete if available
+    if (typeof (this._storage as any).deleteNative === 'function') {
+      try {
+        // For single delete, add LIMIT 1 to query (SQLite will handle this via UPDATE/DELETE)
+        const result = await (this._storage as any).deleteNative(query)
+        // Limit to 1 for deleteOne semantics
+        const deletedCount = Math.min(result.deletedCount, 1)
+        await this._executePostHooks('delete', { query, deletedCount })
+        return { deletedCount }
+      } catch (error) {
+        console.warn('Native delete failed, falling back to JavaScript:', error)
+      }
+    }
+
+    // EXISTING: JavaScript-based delete logic
     // Use indexes for efficient lookup
     const candidates = await this._findDocumentsUsingIndexes(query)
     const docToDelete = candidates[0]
@@ -1085,6 +1135,18 @@ export class Model<T extends object = Record<string, unknown>> {
     await this._ensureStorageReady()
     await this._executePreHooks('delete', { query })
 
+    // NEW: Use native delete if available
+    if (typeof (this._storage as any).deleteNative === 'function') {
+      try {
+        const result = await (this._storage as any).deleteNative(query)
+        await this._executePostHooks('delete', { query, deletedCount: result.deletedCount })
+        return result
+      } catch (error) {
+        console.warn('Native deleteMany failed, falling back to JavaScript:', error)
+      }
+    }
+
+    // EXISTING: JavaScript-based delete logic
     // Use indexes for efficient lookup
     const docsToDelete = await this._findDocumentsUsingIndexes(query)
     if (docsToDelete.length === 0) {
@@ -1258,6 +1320,37 @@ export class Model<T extends object = Record<string, unknown>> {
     await this._ensureStorageReady()
     await this._executePreHooks('update', { query, update })
 
+    // NEW: Use native update if available
+    if (typeof (this._storage as any).updateNative === 'function') {
+      try {
+        const result = await (this._storage as any).updateNative(query, update)
+
+        // Handle upsert if no docs were modified
+        if (result.modifiedCount === 0 && options?.upsert) {
+          const newDoc = this._buildUpsertDocument(query, update)
+          await this.create(newDoc as DeepPartial<T>)
+          await this._executePostHooks('update', {
+            query,
+            update,
+            modifiedCount: 1,
+            upsertedCount: 1
+          })
+          return { modifiedCount: 1, upsertedCount: 1 }
+        }
+
+        await this._executePostHooks('update', {
+          query,
+          update,
+          modifiedCount: result.modifiedCount
+        })
+        return result
+      } catch (error) {
+        // If SQL update fails, fall back to JS (safety net)
+        console.warn('Native update failed, falling back to JavaScript:', error)
+      }
+    }
+
+    // EXISTING: JavaScript-based update logic
     // Use indexes for efficient lookup
     const candidates = await this._findDocumentsUsingIndexes(query)
     let docToUpdate = candidates[0]
@@ -1265,19 +1358,7 @@ export class Model<T extends object = Record<string, unknown>> {
     if (!docToUpdate) {
       // Handle upsert: create document if it doesn't exist
       if (options?.upsert) {
-        const newDoc = {} as Record<string, unknown>
-
-        // Apply query fields as initial values
-        for (const [key, value] of Object.entries(query)) {
-          if (typeof value !== 'object' || value === null || value instanceof ObjectId) {
-            newDoc[key] = value
-          }
-        }
-
-        // Apply the update
-        this._applyUpdate(newDoc as T, update)
-
-        // Create the document
+        const newDoc = this._buildUpsertDocument(query, update)
         await this.create(newDoc as DeepPartial<T>)
 
         await this._executePostHooks('update', {
@@ -1333,6 +1414,23 @@ export class Model<T extends object = Record<string, unknown>> {
     return new QueryBuilder(operation)
   }
 
+  // Helper to build document for upsert
+  private _buildUpsertDocument(query: Query<T>, update: Update<T>): Record<string, unknown> {
+    const newDoc = {} as Record<string, unknown>
+
+    // Apply query fields as initial values
+    for (const [key, value] of Object.entries(query)) {
+      if (typeof value !== 'object' || value === null || value instanceof ObjectId) {
+        newDoc[key] = value
+      }
+    }
+
+    // Apply the update
+    this._applyUpdate(newDoc as T, update)
+
+    return newDoc
+  }
+
   private async _executeUpdateMany(
     query: Query<T>,
     update: Update<T>
@@ -1340,6 +1438,22 @@ export class Model<T extends object = Record<string, unknown>> {
     await this._ensureStorageReady()
     await this._executePreHooks('update', { query, update })
 
+    // NEW: Use native update if available
+    if (typeof (this._storage as any).updateNative === 'function') {
+      try {
+        const result = await (this._storage as any).updateNative(query, update)
+        await this._executePostHooks('update', {
+          query,
+          update,
+          modifiedCount: result.modifiedCount
+        })
+        return result
+      } catch (error) {
+        console.warn('Native updateMany failed, falling back to JavaScript:', error)
+      }
+    }
+
+    // EXISTING: JavaScript-based update logic
     // Use indexes for efficient lookup
     const docsToUpdate = await this._findDocumentsUsingIndexes(query)
     if (docsToUpdate.length === 0) {
@@ -1379,7 +1493,12 @@ export class Model<T extends object = Record<string, unknown>> {
 
   // --- Count Operations ---
   async countDocuments(query: Query<T> = {}): Promise<number> {
-    // Can optimize using indexes for simple queries
+    // NEW: Use native count if available
+    if (typeof (this._storage as any).countNative === 'function') {
+      return await (this._storage as any).countNative(query)
+    }
+
+    // EXISTING: Count via find
     const docs = await this.find(query)
     return docs.length
   }
@@ -1570,15 +1689,21 @@ export class Model<T extends object = Record<string, unknown>> {
   async aggregate<R = Record<string, unknown>>(pipeline: unknown[]): Promise<R[]> {
     await this._ensureStorageReady()
 
-    // Check if storage supports native aggregation
-    const storageWithAggregate = this._storage as unknown as {
-      aggregate?: (pipeline: unknown[]) => Promise<R[]>
-    }
-    if (storageWithAggregate.aggregate) {
-      return storageWithAggregate.aggregate(pipeline)
+    // NEW: Check for native aggregation support first (new interface)
+    if (typeof (this._storage as any).aggregateNative === 'function') {
+      try {
+        return await (this._storage as any).aggregateNative(pipeline)
+      } catch (error) {
+        console.warn('Native aggregation failed, falling back to JavaScript:', error)
+      }
     }
 
-    // Fall back to JS aggregation engine
+    // Check for legacy aggregate method (backward compatibility)
+    if (typeof (this._storage as any).aggregate === 'function') {
+      return await (this._storage as any).aggregate(pipeline)
+    }
+
+    // EXISTING: Fall back to JS aggregation engine
     const { AggregationEngine } = await import('./aggregation-engine.js')
     const engine = new AggregationEngine(this, this._database)
     const results = await engine.execute(pipeline as unknown as AggregationPipeline<T>)
