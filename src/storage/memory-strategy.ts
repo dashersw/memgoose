@@ -1,4 +1,5 @@
 import { StorageStrategy, QueryMatcher, SchemaRecord } from './storage-strategy'
+import { DuplicateKeyError } from '../schema'
 
 // Index metadata structure
 type IndexMetadata<T> = {
@@ -153,8 +154,7 @@ export class MemoryStorageStrategy<T extends object> implements StorageStrategy<
       const duplicates = excludeDoc ? existingDocs.filter(d => d !== excludeDoc) : existingDocs
 
       if (duplicates.length > 0) {
-        const fieldNames = indexMeta.fields.join(', ')
-        throw new Error(`E11000 duplicate key error: ${fieldNames} must be unique`)
+        throw new DuplicateKeyError(indexMeta.fields as string[])
       }
     }
   }

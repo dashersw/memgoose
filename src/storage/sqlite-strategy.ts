@@ -1,4 +1,5 @@
 import { StorageStrategy, QueryMatcher } from './storage-strategy'
+import { DuplicateKeyError } from '../schema'
 import type { Query, QueryOptions, Update } from '../model'
 import type { AggregationPipeline } from '../aggregation'
 import { SqlQueryBuilder } from './sql-query-builder'
@@ -425,7 +426,8 @@ export class SqliteStorageStrategy<T extends object> implements StorageStrategy<
       const result = this._db.prepare(sql).get(...params) as { count: number }
 
       if (result.count > 0) {
-        throw new Error(`E11000 duplicate key error: ${indexKey} must be unique`)
+        const fields = indexKey.split('_')
+        throw new DuplicateKeyError(fields)
       }
     }
   }

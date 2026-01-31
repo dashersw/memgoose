@@ -1,4 +1,4 @@
-export { Schema, VirtualType, ValidationError } from './src/schema'
+export { Schema, VirtualType, ValidationError, DuplicateKeyError } from './src/schema'
 export type {
   FieldOptions,
   ValidatorFunction,

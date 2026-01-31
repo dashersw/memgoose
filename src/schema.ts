@@ -120,6 +120,26 @@ export class ValidationError extends Error {
   }
 }
 
+export class DuplicateKeyError extends Error {
+  code: number = 11000
+  keyPattern: Record<string, number>
+  keyValue: Record<string, unknown>
+
+  constructor(fields: string[], values?: Record<string, unknown>) {
+    const fieldNames = fields.join(', ')
+    super(`E11000 duplicate key error: ${fieldNames} must be unique`)
+    this.name = 'DuplicateKeyError'
+    this.keyPattern = fields.reduce(
+      (acc, field) => {
+        acc[field] = 1
+        return acc
+      },
+      {} as Record<string, number>
+    )
+    this.keyValue = values || {}
+  }
+}
+
 // Schema options
 export type SchemaOptions = {
   timestamps?: boolean | { createdAt?: string | boolean; updatedAt?: string | boolean }

@@ -1,4 +1,5 @@
 import { StorageStrategy, QueryMatcher } from './storage-strategy'
+import { DuplicateKeyError } from '../schema'
 import * as path from 'path'
 import * as fs from 'fs'
 
@@ -575,8 +576,7 @@ export class WiredTigerStorageStrategy<T extends object> implements StorageStrat
       const duplicates = excludeDoc ? existingDocs.filter(d => d !== excludeDoc) : existingDocs
 
       if (duplicates.length > 0) {
-        const fieldNames = indexMeta.fields.map(f => String(f)).join(', ')
-        throw new Error(`E11000 duplicate key error: ${fieldNames} must be unique`)
+        throw new DuplicateKeyError(indexMeta.fields.map(f => String(f)))
       }
     }
   }
