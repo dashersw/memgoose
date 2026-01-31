@@ -133,6 +133,7 @@ See the [`examples/`](./examples/) folder for complete, runnable code samples de
 📚 **[Complete Documentation](./docs/README.md)**
 
 - **[Getting Started](./docs/GETTING_STARTED.md)** - Installation and basic usage
+- **[Testing Guide](./docs/TESTING.md)** - Drop-in replacement for mongoose in tests
 - **[API Reference](./docs/API.md)** - Complete API documentation
 - **[Schemas](./docs/SCHEMAS.md)** - Schema definition and validation
 - **[Queries](./docs/QUERIES.md)** - Query operators and patterns
@@ -187,17 +188,32 @@ See [Performance Guide](./docs/PERFORMANCE.md) for optimization strategies and d
 
 ## Migration from Mongoose
 
-memgoose is designed to be Mongoose-compatible:
+memgoose is designed to be a drop-in replacement for Mongoose - just change the import:
 
 ```typescript
-// Mongoose
+// Change this:
 import mongoose from 'mongoose'
-const User = mongoose.model('User', userSchema)
 
-// memgoose (mostly the same!)
-import { model } from 'memgoose'
-const User = model('User', userSchema)
+// To this:
+import mongoose from 'memgoose'
+
+// Your existing code works unchanged
+const User = mongoose.model('User', userSchema)
 ```
+
+### Drop-in Replacement for Tests
+
+Use memgoose as a complete mock for mongoose in your test suite:
+
+```typescript
+// Vitest
+vi.mock('mongoose', () => import('memgoose'))
+
+// Jest
+jest.mock('mongoose', () => require('memgoose'))
+```
+
+Your existing mongoose-based code will use memgoose automatically. See the **[Testing Guide](./docs/TESTING.md)** for complete setup examples with Vitest and Jest.
 
 ## Contributing
 

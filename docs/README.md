@@ -5,6 +5,7 @@ Complete documentation for memgoose - a lightweight, high-performance in-memory 
 ## Quick Links
 
 - **[Getting Started](GETTING_STARTED.md)** - Start here! Quick introduction and basic usage
+- **[Testing Guide](TESTING.md)** - Use memgoose as a drop-in replacement for mongoose in tests
 - **[API Reference](API.md)** - Complete API documentation
 - **[Examples](../examples)** - Usage examples and demos
 
@@ -19,7 +20,13 @@ Complete documentation for memgoose - a lightweight, high-performance in-memory 
    - Adding persistence
    - Common patterns
 
-2. **[Schemas](SCHEMAS.md)**
+2. **[Testing Guide](TESTING.md)**
+   - Drop-in replacement for mongoose
+   - Setup with Vitest and Jest
+   - Testing Express/Fastify apps
+   - Test isolation with dropDatabase()
+
+3. **[Schemas](SCHEMAS.md)**
    - Field types and definitions
    - Validation (required, min/max, enum, regex, custom)
    - Defaults
@@ -29,7 +36,7 @@ Complete documentation for memgoose - a lightweight, high-performance in-memory 
    - Subdocuments
    - Methods and statics
 
-3. **[Queries](QUERIES.md)**
+4. **[Queries](QUERIES.md)**
    - Query operators ($eq, $ne, $in, $nin, $gt, $gte, $lt, $lte, $regex, $exists, $size, $elemMatch, $all)
    - Logical operators ($or, $and, $nor, $not)
    - Update operators ($set, $unset, $inc, $dec, $push, $pull, $addToSet, $pop, $rename)
@@ -41,7 +48,7 @@ Complete documentation for memgoose - a lightweight, high-performance in-memory 
    - Populate (references)
    - Atomic operations (findOneAndUpdate, findOneAndDelete)
 
-4. **[Aggregation](AGGREGATION.md)** 🆕
+5. **[Aggregation](AGGREGATION.md)** 🆕
    - Complete aggregation pipeline
    - Pipeline stages ($match, $group, $project, $lookup, $unwind, $sort, $limit, $skip, $count, $addFields, $replaceRoot, $sample)
    - Advanced stages ($bucket, $bucketAuto, $facet, $out, $merge)
@@ -49,7 +56,7 @@ Complete documentation for memgoose - a lightweight, high-performance in-memory 
    - Accumulator operators ($sum, $avg, $min, $max, $first, $last, $push, $addToSet)
    - Real-world examples and performance tips
 
-5. **[Storage Backends](STORAGE.md)**
+6. **[Storage Backends](STORAGE.md)**
    - Memory storage (default, fastest)
    - File storage (NDJSON + WAL)
    - SQLite storage (ACID, production-ready)
@@ -59,7 +66,7 @@ Complete documentation for memgoose - a lightweight, high-performance in-memory 
 
 ### Advanced Features
 
-6. **[Advanced Features](ADVANCED.md)**
+7. **[Advanced Features](ADVANCED.md)**
    - Virtuals (computed properties)
    - Hooks/middleware (pre/post save, update, delete, find)
    - Populate (document references)
@@ -71,7 +78,7 @@ Complete documentation for memgoose - a lightweight, high-performance in-memory 
    - Subdocuments (nested schemas)
    - Timestamps
 
-7. **[Performance Guide](PERFORMANCE.md)**
+8. **[Performance Guide](PERFORMANCE.md)**
    - Index performance (83-1147x speedup!)
    - Query optimization
    - Storage performance comparison
@@ -81,7 +88,7 @@ Complete documentation for memgoose - a lightweight, high-performance in-memory 
    - Best practices
    - Profiling techniques
 
-8. **[WiredTiger Storage](WIREDTIGER.md)**
+9. **[WiredTiger Storage](WIREDTIGER.md)**
    - Architecture and features
    - Installation and build requirements
    - Configuration options
@@ -91,7 +98,7 @@ Complete documentation for memgoose - a lightweight, high-performance in-memory 
 
 ### Reference
 
-9. **[API Reference](API.md)**
+10. **[API Reference](API.md)**
    - Schema class and methods
    - Model class and methods
    - Database and connection management
@@ -423,18 +430,18 @@ async function getUser(id: string) {
 
 ## Migration from Mongoose
 
-memgoose is designed for easy migration from Mongoose:
+memgoose is designed to be a drop-in replacement for Mongoose - just change the import:
 
 ```typescript
-// Mongoose
+// Change this:
 import mongoose from 'mongoose'
+
+// To this:
+import mongoose from 'memgoose'
+
+// Your existing code works unchanged
 const userSchema = new mongoose.Schema({ name: String })
 const User = mongoose.model('User', userSchema)
-
-// memgoose (similar API!)
-import { Schema, model } from 'memgoose'
-const userSchema = new Schema({ name: String })
-const User = model('User', userSchema)
 ```
 
 **Key differences:**
