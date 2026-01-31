@@ -34,9 +34,12 @@ export type {
 } from './src/model'
 
 // Query builders
-export { QueryBuilder } from './src/query-builder'
-export { DocumentQueryBuilder } from './src/document-query-builder'
-export { FindQueryBuilder } from './src/find-query-builder'
+import { QueryBuilder as _QueryBuilder } from './src/query-builder'
+import { DocumentQueryBuilder as _DocumentQueryBuilder } from './src/document-query-builder'
+import { FindQueryBuilder as _FindQueryBuilder } from './src/find-query-builder'
+export const QueryBuilder = _QueryBuilder
+export const DocumentQueryBuilder = _DocumentQueryBuilder
+export const FindQueryBuilder = _FindQueryBuilder
 
 // ObjectId
 import { ObjectId as _ObjectId } from './src/objectid'
@@ -65,7 +68,8 @@ export type {
 import { Database as _Database } from './src/database'
 export const Database = _Database
 export type { DatabaseConfig } from './src/database'
-export { TTLManager } from './src/ttl-manager'
+import { TTLManager as _TTLManager } from './src/ttl-manager'
+export const TTLManager = _TTLManager
 import {
   connect as _connect,
   createDatabase as _createDatabase,
@@ -86,18 +90,22 @@ export const dropDatabase = _dropDatabase
 export const getDefaultDatabase = _getDefaultDatabase
 
 // Storage strategies (for custom implementations)
-export {
-  StorageStrategy,
-  MemoryStorageStrategy,
-  FileStorageStrategy,
-  SqliteStorageStrategy
+import {
+  MemoryStorageStrategy as _MemoryStorageStrategy,
+  FileStorageStrategy as _FileStorageStrategy,
+  SqliteStorageStrategy as _SqliteStorageStrategy
 } from './src/storage'
-export type { FileStorageOptions, SqliteStorageOptions } from './src/storage'
+export const MemoryStorageStrategy = _MemoryStorageStrategy
+export const FileStorageStrategy = _FileStorageStrategy
+export const SqliteStorageStrategy = _SqliteStorageStrategy
+export type { StorageStrategy, FileStorageOptions, SqliteStorageOptions } from './src/storage'
 
 // Default export - mongoose-compatible structure
 // Allows: import mongoose from 'memgoose'
 // Then: mongoose.Schema, mongoose.Schema.Types.ObjectId, mongoose.model(), etc.
+// Also enables: vi.mock('mongoose', () => import('memgoose'))
 const memgoose = {
+  // Core classes
   Schema: _Schema,
   Model: _Model,
   Document: _Document,
@@ -105,7 +113,15 @@ const memgoose = {
   Types: {
     ObjectId: _ObjectId
   },
+
+  // Query builders
+  QueryBuilder: _QueryBuilder,
+  DocumentQueryBuilder: _DocumentQueryBuilder,
+  FindQueryBuilder: _FindQueryBuilder,
+
+  // Database management
   Database: _Database,
+  TTLManager: _TTLManager,
   connect: _connect,
   createDatabase: _createDatabase,
   model: _model,
@@ -114,6 +130,13 @@ const memgoose = {
   disconnect: _disconnect,
   dropDatabase: _dropDatabase,
   getDefaultDatabase: _getDefaultDatabase,
+
+  // Storage strategies (StorageStrategy is a type, not included here)
+  MemoryStorageStrategy: _MemoryStorageStrategy,
+  FileStorageStrategy: _FileStorageStrategy,
+  SqliteStorageStrategy: _SqliteStorageStrategy,
+
+  // Errors and utilities
   VirtualType,
   ValidationError,
   DuplicateKeyError
