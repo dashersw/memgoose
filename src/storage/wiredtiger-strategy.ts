@@ -1,4 +1,4 @@
-import { StorageStrategy, QueryMatcher, SchemaRecord } from './storage-strategy'
+import { StorageStrategy, QueryMatcher } from './storage-strategy'
 import * as path from 'path'
 import * as fs from 'fs'
 

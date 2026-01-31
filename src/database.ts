@@ -16,6 +16,18 @@ export interface DatabaseConfig {
     dataPath: string
     persistMode?: 'immediate' | 'debounced'
     debounceMs?: number
+    compaction?: {
+      operationThreshold?: number
+      intervalMs?: number
+      sizeThresholdBytes?: number
+      walDataRatio?: number
+      emergencyOperations?: number
+      emergencySizeBytes?: number
+      emergencyRatio?: number
+      debounceMs?: number
+      useWorkerThread?: boolean
+      workerThreshold?: number
+    }
   }
   sqlite?: {
     dataPath: string

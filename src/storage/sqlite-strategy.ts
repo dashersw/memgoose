@@ -1,4 +1,4 @@
-import { StorageStrategy, QueryMatcher, SchemaRecord } from './storage-strategy'
+import { StorageStrategy, QueryMatcher } from './storage-strategy'
 import type { Query, QueryOptions, Update } from '../model'
 import type { AggregationPipeline } from '../aggregation'
 import { SqlQueryBuilder } from './sql-query-builder'
@@ -483,7 +483,7 @@ export class SqliteStorageStrategy<T extends object> implements StorageStrategy<
     // No-op: SQLite handles index updates automatically
   }
 
-  checkUniqueConstraints(doc: Partial<T>, excludeDoc?: T): void {
+  checkUniqueConstraints(_doc: Partial<T>, _excludeDoc?: T): void {
     // Sync method for interface compatibility
     // Actual checking is done async in _checkUniqueConstraintsSQL
     // This will be called from async contexts, so the real check happens there

@@ -7,11 +7,14 @@ import { SqlQueryBuilder } from './sql-query-builder'
  */
 export class SqlAggregationBuilder<T extends object> {
   private queryBuilder: SqlQueryBuilder<T>
-  
-  constructor(private tableName: string, private db: any) {
+
+  constructor(
+    private tableName: string,
+    private db: any
+  ) {
     this.queryBuilder = new SqlQueryBuilder<T>(tableName)
   }
-  
+
   /**
    * Build aggregation query from pipeline
    * Note: Complex pipelines may not be fully supported and will throw errors
@@ -19,7 +22,7 @@ export class SqlAggregationBuilder<T extends object> {
   buildAggregationQuery(pipeline: AggregationPipeline<T>): { sql: string; params: unknown[] } {
     // For now, we'll support basic pipelines that can be translated to simple SQL
     // More complex aggregations will fall back to JavaScript engine
-    
+
     const params: unknown[] = []
     let sql = `SELECT`
     let from = ` FROM ${this.tableName}`
@@ -28,11 +31,11 @@ export class SqlAggregationBuilder<T extends object> {
     let orderBy = ''
     let limit = ''
     let offset = ''
-    
+
     // Track if we need to project fields or use data
     let selectFields: string[] = []
     let hasGroup = false
-    
+
     for (const stage of pipeline) {
       if ('$match' in stage) {
         // Build WHERE clause
@@ -43,11 +46,10 @@ export class SqlAggregationBuilder<T extends object> {
         }
       } else if ('$sort' in stage) {
         // Build ORDER BY clause
-        const sortClauses = Object.entries(stage.$sort)
-          .map(([field, direction]) => {
-            const dir = direction === 1 ? 'ASC' : 'DESC'
-            return `json_extract(data, '$.${field}') ${dir}`
-          })
+        const sortClauses = Object.entries(stage.$sort).map(([field, direction]) => {
+          const dir = direction === 1 ? 'ASC' : 'DESC'
+          return `json_extract(data, '$.${field}') ${dir}`
+        })
         orderBy = ` ORDER BY ${sortClauses.join(', ')}`
       } else if ('$limit' in stage) {
         limit = ` LIMIT ${stage.$limit}`
@@ -61,7 +63,7 @@ export class SqlAggregationBuilder<T extends object> {
         hasGroup = true
         // Basic $group support
         const groupStage = stage.$group
-        
+
         // Build GROUP BY fields
         if (groupStage._id && groupStage._id !== null) {
           if (typeof groupStage._id === 'string') {
@@ -87,11 +89,11 @@ export class SqlAggregationBuilder<T extends object> {
           // Group all: { $group: { _id: null } }
           selectFields.push('NULL as _id')
         }
-        
+
         // Build aggregation functions
         for (const [field, accumulator] of Object.entries(groupStage)) {
           if (field === '_id') continue
-          
+
           if (typeof accumulator === 'object' && accumulator !== null) {
             if ('$sum' in accumulator) {
               const sumValue = accumulator.$sum
@@ -115,12 +117,17 @@ export class SqlAggregationBuilder<T extends object> {
               const pushValue = accumulator.$push
               if (typeof pushValue === 'string' && pushValue.startsWith('$')) {
                 const pushField = pushValue.slice(1)
-                selectFields.push(`json_group_array(json_extract(data, '$.${pushField}')) as ${field}`)
+                selectFields.push(
+                  `json_group_array(json_extract(data, '$.${pushField}')) as ${field}`
+                )
               }
             } else if ('$addToSet' in accumulator) {
               // Use json_group_array with DISTINCT
-              const addField = typeof accumulator.$addToSet === 'string' ? accumulator.$addToSet.slice(1) : ''
-              selectFields.push(`json_group_array(DISTINCT json_extract(data, '$.${addField}')) as ${field}`)
+              const addField =
+                typeof accumulator.$addToSet === 'string' ? accumulator.$addToSet.slice(1) : ''
+              selectFields.push(
+                `json_group_array(DISTINCT json_extract(data, '$.${addField}')) as ${field}`
+              )
             }
           }
         }
@@ -147,10 +154,12 @@ export class SqlAggregationBuilder<T extends object> {
       } else {
         // Unsupported stage - throw error to fall back to JS engine
         const stageName = Object.keys(stage)[0]
-        throw new Error(`Unsupported aggregation stage for SQL: ${stageName}. Falling back to JavaScript engine.`)
+        throw new Error(
+          `Unsupported aggregation stage for SQL: ${stageName}. Falling back to JavaScript engine.`
+        )
       }
     }
-    
+
     // Build final SQL
     if (selectFields.length > 0) {
       sql += ' ' + selectFields.join(', ')
@@ -158,10 +167,9 @@ export class SqlAggregationBuilder<T extends object> {
       // No specific fields, return full data
       sql += ' data'
     }
-    
+
     sql += from + where + groupBy + orderBy + limit + offset
-    
+
     return { sql, params }
   }
 }
-

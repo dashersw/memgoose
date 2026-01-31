@@ -71,6 +71,10 @@ export interface StorageStrategy<T extends object = Record<string, unknown>> {
   aggregateNative?<R = Record<string, unknown>>(pipeline: AggregationPipeline<T>): Promise<R[]>
 
   // Optional schema tracking methods (for persistent storage strategies)
-  recordSchema?(schemaData: SchemaRecord): Promise<void>
+  recordSchema?(schemaData: Omit<SchemaRecord, 'createdAt' | 'updatedAt'>): Promise<void>
   getSchema?(modelName: string): Promise<SchemaRecord | null>
+
+  // Optional lifecycle methods (for cleanup and flushing)
+  flush?(): Promise<void>
+  close?(): void
 }

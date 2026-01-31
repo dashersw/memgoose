@@ -28,7 +28,7 @@ test('Model - Query Operators', async t => {
     const result = await User.findOne({ name: { $in: ['Bob', 'Charlie'] } })
 
     assert.ok(result?.name)
-    assert.ok(['Bob', 'Charlie'].includes(result?.name))
+    assert.ok(['Bob', 'Charlie'].includes(result?.name as string))
   })
 
   await t.test('should support $nin operator', async () => {
@@ -37,7 +37,7 @@ test('Model - Query Operators', async t => {
     const result = await User.findOne({ name: { $nin: ['Alice', 'Bob'] } })
 
     assert.ok(result?.name)
-    assert.ok(result && !['Alice', 'Bob'].includes(result.name))
+    assert.ok(result && !['Alice', 'Bob'].includes(result.name as string))
   })
 
   await t.test('should support $gt operator', async () => {
@@ -46,7 +46,7 @@ test('Model - Query Operators', async t => {
     const result = await User.findOne({ age: { $gt: 35 } })
 
     assert.ok(result?.age)
-    assert.ok(result?.age > 35)
+    assert.ok((result?.age as number) > 35)
   })
 
   await t.test('should support $gte operator', async () => {
@@ -55,7 +55,7 @@ test('Model - Query Operators', async t => {
     const result = await User.findOne({ age: { $gte: 35 } })
 
     assert.ok(result?.age)
-    assert.ok(result?.age >= 35)
+    assert.ok((result?.age as number) >= 35)
   })
 
   await t.test('should support $lt operator', async () => {
@@ -64,7 +64,7 @@ test('Model - Query Operators', async t => {
     const result = await User.findOne({ age: { $lt: 30 } })
 
     assert.ok(result?.age)
-    assert.ok(result?.age < 30)
+    assert.ok((result?.age as number) < 30)
   })
 
   await t.test('should support $lte operator', async () => {
@@ -73,7 +73,7 @@ test('Model - Query Operators', async t => {
     const result = await User.findOne({ age: { $lte: 28 } })
 
     assert.ok(result?.age)
-    assert.ok(result?.age <= 28)
+    assert.ok((result?.age as number) <= 28)
   })
 
   await t.test('should support $regex operator', async () => {
@@ -89,7 +89,7 @@ test('Model - Query Operators', async t => {
     await User.insertMany(testUsers)
     const result = await User.findOne({ city: { $regex: /^New/ } })
 
-    assert.ok(result?.city.startsWith('New'))
+    assert.ok((result?.city as string).startsWith('New'))
   })
 
   await t.test('should handle array matching with $all operator where no match', async () => {

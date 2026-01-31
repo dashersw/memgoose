@@ -104,7 +104,7 @@ test('Hooks', async t => {
 
     let deletedName = ''
     userSchema.pre('delete', ({ query }) => {
-      deletedName = query.name
+      deletedName = query.name as string
     })
 
     const User = model('User', userSchema)
@@ -189,7 +189,7 @@ test('Hooks', async t => {
 
     let queriedName = ''
     userSchema.pre('findOne', ({ query }) => {
-      queriedName = query.name
+      queriedName = query.name as string
     })
 
     const User = model('User', userSchema)
@@ -249,8 +249,9 @@ test('Hooks', async t => {
 
     let queriedAge = 0
     userSchema.pre('find', ({ query }) => {
-      if (query.age && query.age.$gte) {
-        queriedAge = query.age.$gte
+      const ageQuery = query.age as { $gte?: number } | undefined
+      if (ageQuery && ageQuery.$gte) {
+        queriedAge = ageQuery.$gte
       }
     })
 

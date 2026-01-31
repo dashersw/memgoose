@@ -203,7 +203,3 @@ describe('Schema Tracking', () => {
     assert.ok(schemaJSON.version, 'Should have version hash')
   })
 })
-
-
-
-
