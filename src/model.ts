@@ -5,7 +5,7 @@ import { DocumentQueryBuilder } from './document-query-builder'
 import { FindQueryBuilder } from './find-query-builder'
 import { QueryableKeys } from './type-utils'
 import { StorageStrategy, MemoryStorageStrategy } from './storage'
-import type { Document } from './document'
+import { Document, type IDocument } from './document'
 import type { Database } from './database'
 import type { AggregationPipeline } from './aggregation'
 
@@ -13,8 +13,9 @@ import type { AggregationPipeline } from './aggregation'
 const ORIGINAL_DOC = Symbol('originalDoc')
 const MODEL_REF = Symbol('modelRef')
 
-// Re-export Document for backwards compatibility
-export type { Document }
+// Re-export Document class and interface for backwards compatibility
+export { Document }
+export type { IDocument }
 
 // Deep partial type for nested objects
 export type DeepPartial<T> = T extends object

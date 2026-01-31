@@ -1,3 +1,6 @@
+// Import ObjectId for Schema.Types
+import { ObjectId } from './objectid'
+
 // Virtual type for getter/setter virtuals
 export class VirtualType<T = unknown> {
   private _getter?: ((this: any) => T) | ((doc: any) => T)
@@ -148,6 +151,11 @@ export type SchemaOptions = {
 
 // Schema definition (simplified - just for type info and indexes)
 export class Schema<T extends object = Record<string, unknown>> {
+  // Static Types property for mongoose compatibility (e.g., Schema.Types.ObjectId)
+  static Types = {
+    ObjectId: ObjectId
+  }
+
   private _definition: Record<string, unknown>
   private _fieldOptions: Map<keyof T, FieldOptions>
   private _indexes: Array<Array<keyof T>>
