@@ -1,6 +1,6 @@
 {
   "name": "memgoose",
-  "version": "2.2.0",
+  "version": "2.2.1",
   "description": "An in-memory mongoose impersonator",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
