@@ -206,14 +206,14 @@ async function main() {
     // 11. Sort + Limit (executed in SQL)
     console.log('\n1️⃣1️⃣  Sort + Limit (native SQL ORDER BY + LIMIT):')
     start = performance.now()
-    const topProducts = await Product.find({ inStock: true }).sort({ price: -1 }).limit(10)
+    const _topProducts = await Product.find({ inStock: true }).sort({ price: -1 }).limit(10)
     time = performance.now() - start
     console.log(`   ✓ ${time.toFixed(2)}ms - Found top 10 most expensive in-stock products`)
 
     // 12. Skip + Limit (pagination in SQL)
     console.log('\n1️⃣2️⃣  Pagination (native SQL OFFSET + LIMIT):')
     start = performance.now()
-    const page2 = await Product.find({ category: 'Electronics' })
+    const _page2 = await Product.find({ category: 'Electronics' })
       .sort({ price: 1 })
       .skip(100)
       .limit(50)

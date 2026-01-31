@@ -1,6 +1,6 @@
 import { describe, it, beforeEach } from 'node:test'
 import assert from 'node:assert'
-import { Schema, Model, createDatabase } from '../index'
+import { Schema, createDatabase } from '../index'
 import * as fs from 'fs'
 import * as path from 'path'
 
@@ -351,9 +351,7 @@ describe('SQLite Native SQL Execution', () => {
     // $addToSet with DISTINCT should return unique values
     // SQLite returns JSON array string, need to parse if string
     const categories =
-      typeof resultA.categories === 'string'
-        ? JSON.parse(resultA.categories)
-        : resultA.categories
+      typeof resultA.categories === 'string' ? JSON.parse(resultA.categories) : resultA.categories
     assert.ok(Array.isArray(categories))
     assert.strictEqual(categories.length, 1)
   })
@@ -435,9 +433,7 @@ describe('SQLite Native SQL Execution', () => {
       _id: typeof r._id === 'string' ? JSON.parse(r._id) : r._id,
       count: r.count
     }))
-    const aActive = parsedResults.find(
-      r => r._id.category === 'A' && r._id.status === 'active'
-    )
+    const aActive = parsedResults.find(r => r._id.category === 'A' && r._id.status === 'active')
     assert.ok(aActive)
     assert.strictEqual(aActive.count, 2)
   })
@@ -966,9 +962,7 @@ describe('SQLite Native SQL Execution', () => {
 
     const TestModel = db.model('NativeEmptyIn', schema)
 
-    await TestModel.insertMany([
-      { name: 'Alice', age: 25, category: 'A' }
-    ])
+    await TestModel.insertMany([{ name: 'Alice', age: 25, category: 'A' }])
 
     // Empty $in should return no results
     const results = await TestModel.find({ category: { $in: [] } })

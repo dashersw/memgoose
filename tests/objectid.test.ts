@@ -132,9 +132,7 @@ test('ObjectId', async t => {
 
     // This enables duck-typing checks like mongoose does
     const isBsonObjectId = (v: unknown): boolean =>
-      v !== null &&
-      typeof v === 'object' &&
-      (v as { _bsontype?: string })._bsontype === 'ObjectId'
+      v !== null && typeof v === 'object' && (v as { _bsontype?: string })._bsontype === 'ObjectId'
 
     assert.strictEqual(isBsonObjectId(id), true)
     assert.strictEqual(isBsonObjectId({}), false)

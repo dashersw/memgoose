@@ -63,9 +63,7 @@ async function fileDatabaseDemo() {
 
   // Verify files are gone
   const fs = await import('fs')
-  const files = fs.existsSync('./demo-data')
-    ? fs.readdirSync('./demo-data')
-    : []
+  const files = fs.existsSync('./demo-data') ? fs.readdirSync('./demo-data') : []
   console.log('Remaining files in ./demo-data/:', files.length ? files : 'none')
 }
 

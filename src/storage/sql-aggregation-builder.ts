@@ -1,4 +1,4 @@
-import type { AggregationPipeline, AggregationStage } from '../aggregation'
+import type { AggregationPipeline } from '../aggregation'
 import { SqlQueryBuilder } from './sql-query-builder'
 
 /**

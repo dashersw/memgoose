@@ -1,4 +1,4 @@
-import type { Query, QueryOptions, Update, QueryOperator } from '../model'
+import type { Query, QueryOptions, Update } from '../model'
 import { ObjectId } from '../objectid'
 
 /**
