@@ -709,6 +709,10 @@ export class Model<T extends object = Record<string, unknown>> {
 
       // Fast path: simple equality for non-object values (most common case)
       if (typeof value !== 'object' || value === null) {
+        // MongoDB behavior: querying { field: null } matches both null and undefined (missing fields)
+        if (value === null) {
+          return field === null || field === undefined
+        }
         return this._compareValues(field, value)
       }
 
@@ -732,12 +736,28 @@ export class Model<T extends object = Record<string, unknown>> {
         return Object.entries(value).every(([op, v]) => {
           switch (op) {
             case '$eq':
+              // MongoDB behavior: $eq: null matches both null and undefined
+              if (v === null) {
+                return field === null || field === undefined
+              }
               return this._compareValues(field, v)
             case '$ne':
+              // MongoDB behavior: $ne: null excludes both null and undefined
+              if (v === null) {
+                return field !== null && field !== undefined
+              }
               return field !== v
             case '$in':
+              // MongoDB behavior: $in: [null] matches both null and undefined
+              if (Array.isArray(v) && v.includes(null) && (field === null || field === undefined)) {
+                return true
+              }
               return Array.isArray(v) && v.includes(field)
             case '$nin':
+              // MongoDB behavior: $nin: [null] excludes both null and undefined
+              if (Array.isArray(v) && v.includes(null) && (field === null || field === undefined)) {
+                return false
+              }
               return Array.isArray(v) && !v.includes(field)
             case '$gt':
               return (field as unknown as number | Date) > (v as unknown as number | Date)

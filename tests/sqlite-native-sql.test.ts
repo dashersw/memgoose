@@ -545,6 +545,119 @@ describe('SQLite Native SQL Execution', () => {
     assert.strictEqual(results[0].name, 'Bob')
   })
 
+  it('should match undefined/missing fields when querying { field: null } (MongoDB compat)', async () => {
+    const db = createDatabase({ storage: 'sqlite', sqlite: { dataPath: testDir } })
+
+    const schema = new Schema({
+      name: String,
+      city: String
+    })
+
+    const TestModel = db.model('NullUndefined', schema)
+
+    await TestModel.insertMany([
+      { name: 'Alice', city: 'NYC' },
+      { name: 'Bob', city: null as any },
+      { name: 'Charlie' } // city is undefined/missing
+    ])
+
+    // Query for null - should match both explicit null and missing field
+    const results = await TestModel.find({ city: null as any })
+    assert.strictEqual(results.length, 2)
+    const names = results.map((r: any) => r.name).sort()
+    assert.deepStrictEqual(names, ['Bob', 'Charlie'])
+  })
+
+  it('should match undefined/missing fields with $eq: null (MongoDB compat)', async () => {
+    const db = createDatabase({ storage: 'sqlite', sqlite: { dataPath: testDir } })
+
+    const schema = new Schema({
+      name: String,
+      city: String
+    })
+
+    const TestModel = db.model('EqNull', schema)
+
+    await TestModel.insertMany([
+      { name: 'Alice', city: 'NYC' },
+      { name: 'Bob', city: null as any },
+      { name: 'Charlie' } // city is undefined/missing
+    ])
+
+    const results = await TestModel.find({ city: { $eq: null } })
+    assert.strictEqual(results.length, 2)
+    const names = results.map((r: any) => r.name).sort()
+    assert.deepStrictEqual(names, ['Bob', 'Charlie'])
+  })
+
+  it('should exclude undefined/missing fields with $ne: null (MongoDB compat)', async () => {
+    const db = createDatabase({ storage: 'sqlite', sqlite: { dataPath: testDir } })
+
+    const schema = new Schema({
+      name: String,
+      city: String
+    })
+
+    const TestModel = db.model('NeNull', schema)
+
+    await TestModel.insertMany([
+      { name: 'Alice', city: 'NYC' },
+      { name: 'Bob', city: null as any },
+      { name: 'Charlie' } // city is undefined/missing
+    ])
+
+    const results = await TestModel.find({ city: { $ne: null } })
+    assert.strictEqual(results.length, 1)
+    assert.strictEqual(results[0].name, 'Alice')
+  })
+
+  it('should match undefined/missing fields with $in: [null] (MongoDB compat)', async () => {
+    const db = createDatabase({ storage: 'sqlite', sqlite: { dataPath: testDir } })
+
+    const schema = new Schema({
+      name: String,
+      city: String
+    })
+
+    const TestModel = db.model('InNull', schema)
+
+    await TestModel.insertMany([
+      { name: 'Alice', city: 'NYC' },
+      { name: 'Bob', city: null as any },
+      { name: 'Charlie' }, // city is undefined/missing
+      { name: 'Dave', city: 'LA' }
+    ])
+
+    // $in: [null, 'NYC'] should match Bob (null), Charlie (missing), and Alice (NYC)
+    const results = await TestModel.find({ city: { $in: [null, 'NYC'] } })
+    assert.strictEqual(results.length, 3)
+    const names = results.map((r: any) => r.name).sort()
+    assert.deepStrictEqual(names, ['Alice', 'Bob', 'Charlie'])
+  })
+
+  it('should exclude undefined/missing fields with $nin: [null] (MongoDB compat)', async () => {
+    const db = createDatabase({ storage: 'sqlite', sqlite: { dataPath: testDir } })
+
+    const schema = new Schema({
+      name: String,
+      city: String
+    })
+
+    const TestModel = db.model('NinNull', schema)
+
+    await TestModel.insertMany([
+      { name: 'Alice', city: 'NYC' },
+      { name: 'Bob', city: null as any },
+      { name: 'Charlie' }, // city is undefined/missing
+      { name: 'Dave', city: 'LA' }
+    ])
+
+    // $nin: [null, 'NYC'] should exclude Bob (null), Charlie (missing), and Alice (NYC)
+    const results = await TestModel.find({ city: { $nin: [null, 'NYC'] } })
+    assert.strictEqual(results.length, 1)
+    assert.strictEqual(results[0].name, 'Dave')
+  })
+
   it('should serialize Date values in queries', async () => {
     const db = createDatabase({ storage: 'sqlite', sqlite: { dataPath: testDir } })
 

@@ -457,4 +457,124 @@ test('Model - Query Operators', async t => {
 
     assert.strictEqual(results.length, 0)
   })
+
+  // Tests for null/undefined query behavior (MongoDB compatibility)
+  await t.test('should match undefined fields when querying { field: null }', async () => {
+    const User = model('User', new Schema({}))
+    await User.insertMany([
+      { name: 'Alice', city: 'NYC' },
+      { name: 'Bob', city: null },
+      { name: 'Charlie' } // city is undefined/missing
+    ])
+
+    const results = await User.find({ city: null })
+
+    assert.strictEqual(results.length, 2)
+    const names = results.map(r => r.name).sort()
+    assert.deepStrictEqual(names, ['Bob', 'Charlie'])
+  })
+
+  await t.test('should match undefined fields when querying { field: { $eq: null } }', async () => {
+    const User = model('User', new Schema({}))
+    await User.insertMany([
+      { name: 'Alice', city: 'NYC' },
+      { name: 'Bob', city: null },
+      { name: 'Charlie' } // city is undefined/missing
+    ])
+
+    const results = await User.find({ city: { $eq: null } })
+
+    assert.strictEqual(results.length, 2)
+    const names = results.map(r => r.name).sort()
+    assert.deepStrictEqual(names, ['Bob', 'Charlie'])
+  })
+
+  await t.test(
+    'should exclude undefined fields when querying { field: { $ne: null } }',
+    async () => {
+      const User = model('User', new Schema({}))
+      await User.insertMany([
+        { name: 'Alice', city: 'NYC' },
+        { name: 'Bob', city: null },
+        { name: 'Charlie' } // city is undefined/missing
+      ])
+
+      const results = await User.find({ city: { $ne: null } })
+
+      assert.strictEqual(results.length, 1)
+      assert.strictEqual(results[0].name, 'Alice')
+    }
+  )
+
+  await t.test(
+    'should match undefined fields when querying { field: { $in: [null] } }',
+    async () => {
+      const User = model('User', new Schema({}))
+      await User.insertMany([
+        { name: 'Alice', city: 'NYC' },
+        { name: 'Bob', city: null },
+        { name: 'Charlie' } // city is undefined/missing
+      ])
+
+      const results = await User.find({ city: { $in: [null] } })
+
+      assert.strictEqual(results.length, 2)
+      const names = results.map(r => r.name).sort()
+      assert.deepStrictEqual(names, ['Bob', 'Charlie'])
+    }
+  )
+
+  await t.test(
+    'should match undefined and other values when querying { field: { $in: [null, value] } }',
+    async () => {
+      const User = model('User', new Schema({}))
+      await User.insertMany([
+        { name: 'Alice', city: 'NYC' },
+        { name: 'Bob', city: null },
+        { name: 'Charlie' }, // city is undefined/missing
+        { name: 'Dave', city: 'LA' }
+      ])
+
+      const results = await User.find({ city: { $in: [null, 'NYC'] } })
+
+      assert.strictEqual(results.length, 3)
+      const names = results.map(r => r.name).sort()
+      assert.deepStrictEqual(names, ['Alice', 'Bob', 'Charlie'])
+    }
+  )
+
+  await t.test(
+    'should exclude undefined fields when querying { field: { $nin: [null] } }',
+    async () => {
+      const User = model('User', new Schema({}))
+      await User.insertMany([
+        { name: 'Alice', city: 'NYC' },
+        { name: 'Bob', city: null },
+        { name: 'Charlie' } // city is undefined/missing
+      ])
+
+      const results = await User.find({ city: { $nin: [null] } })
+
+      assert.strictEqual(results.length, 1)
+      assert.strictEqual(results[0].name, 'Alice')
+    }
+  )
+
+  await t.test(
+    'should exclude undefined and other values when querying { field: { $nin: [null, value] } }',
+    async () => {
+      const User = model('User', new Schema({}))
+      await User.insertMany([
+        { name: 'Alice', city: 'NYC' },
+        { name: 'Bob', city: null },
+        { name: 'Charlie' }, // city is undefined/missing
+        { name: 'Dave', city: 'LA' }
+      ])
+
+      const results = await User.find({ city: { $nin: [null, 'NYC'] } })
+
+      assert.strictEqual(results.length, 1)
+      assert.strictEqual(results[0].name, 'Dave')
+    }
+  )
 })

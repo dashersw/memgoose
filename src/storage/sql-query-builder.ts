@@ -194,12 +194,20 @@ export class SqlQueryBuilder<T extends object> {
 
     switch (operator) {
       case '$eq': {
+        // MongoDB behavior: $eq: null matches both null and undefined (missing fields)
+        if (value === null || value === undefined) {
+          return { sql: `${fieldExpr} IS NULL`, params: [] }
+        }
         const serialized = this.serializeValue(value)
         params.push(serialized)
         return { sql: `${fieldExpr} = ?`, params }
       }
 
       case '$ne': {
+        // MongoDB behavior: $ne: null excludes both null and undefined (missing fields)
+        if (value === null || value === undefined) {
+          return { sql: `${fieldExpr} IS NOT NULL`, params: [] }
+        }
         const serialized = this.serializeValue(value)
         params.push(serialized)
         // Handle NULL: field != value OR field IS NULL
@@ -234,18 +242,51 @@ export class SqlQueryBuilder<T extends object> {
         if (!Array.isArray(value) || value.length === 0) {
           return { sql: '0', params: [] } // Always false
         }
-        const placeholders = value.map(() => '?').join(', ')
-        params.push(...value.map(v => this.serializeValue(v)))
-        return { sql: `${fieldExpr} IN (${placeholders})`, params }
+        // MongoDB behavior: $in: [null] matches both null and undefined (missing fields)
+        const hasNull = value.some(v => v === null || v === undefined)
+        const nonNullValues = value.filter(v => v !== null && v !== undefined)
+
+        if (hasNull && nonNullValues.length === 0) {
+          // Only null in array
+          return { sql: `${fieldExpr} IS NULL`, params: [] }
+        } else if (hasNull) {
+          // Mix of null and other values
+          const placeholders = nonNullValues.map(() => '?').join(', ')
+          params.push(...nonNullValues.map(v => this.serializeValue(v)))
+          return { sql: `(${fieldExpr} IS NULL OR ${fieldExpr} IN (${placeholders}))`, params }
+        } else {
+          // No null values
+          const placeholders = value.map(() => '?').join(', ')
+          params.push(...value.map(v => this.serializeValue(v)))
+          return { sql: `${fieldExpr} IN (${placeholders})`, params }
+        }
       }
 
       case '$nin': {
         if (!Array.isArray(value) || value.length === 0) {
           return { sql: '1', params: [] } // Always true
         }
-        const placeholders = value.map(() => '?').join(', ')
-        params.push(...value.map(v => this.serializeValue(v)))
-        return { sql: `(${fieldExpr} NOT IN (${placeholders}) OR ${fieldExpr} IS NULL)`, params }
+        // MongoDB behavior: $nin: [null] excludes both null and undefined (missing fields)
+        const hasNull = value.some(v => v === null || v === undefined)
+        const nonNullValues = value.filter(v => v !== null && v !== undefined)
+
+        if (hasNull && nonNullValues.length === 0) {
+          // Only null in array - exclude null/undefined
+          return { sql: `${fieldExpr} IS NOT NULL`, params: [] }
+        } else if (hasNull) {
+          // Mix of null and other values - must be NOT NULL AND NOT IN (...)
+          const placeholders = nonNullValues.map(() => '?').join(', ')
+          params.push(...nonNullValues.map(v => this.serializeValue(v)))
+          return {
+            sql: `(${fieldExpr} IS NOT NULL AND ${fieldExpr} NOT IN (${placeholders}))`,
+            params
+          }
+        } else {
+          // No null values - original behavior
+          const placeholders = value.map(() => '?').join(', ')
+          params.push(...value.map(v => this.serializeValue(v)))
+          return { sql: `(${fieldExpr} NOT IN (${placeholders}) OR ${fieldExpr} IS NULL)`, params }
+        }
       }
 
       case '$regex': {
