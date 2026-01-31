@@ -30,6 +30,12 @@ export { DocumentQueryBuilder } from './src/document-query-builder'
 export { FindQueryBuilder } from './src/find-query-builder'
 export { ObjectId } from './src/objectid'
 
+// Types namespace (Mongoose-compatible)
+import { ObjectId as _ObjectId } from './src/objectid'
+export const Types = {
+  ObjectId: _ObjectId
+}
+
 // Aggregation pipeline
 export type {
   AggregationPipeline,
