@@ -91,6 +91,17 @@ export async function disconnect(): Promise<void> {
 }
 
 /**
+ * Drop the default database - deletes all physical storage files
+ * This is a destructive operation that cannot be undone
+ * After dropping, a fresh database instance is created
+ */
+export async function dropDatabase(): Promise<void> {
+  await defaultDatabase.dropDatabase()
+  // Recreate default database to ensure fresh instance
+  defaultDatabase = new Database()
+}
+
+/**
  * Get the default database instance
  * @returns Default Database instance
  */

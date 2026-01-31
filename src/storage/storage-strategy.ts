@@ -42,6 +42,9 @@ export interface StorageStrategy<T extends object = Record<string, unknown>> {
   // Clear all documents
   clear(): Promise<void>
 
+  // Drop the entire database/collection (delete files, tables, etc.)
+  drop?(): Promise<void>
+
   // Index management
   createIndex(fields: keyof T | Array<keyof T>, options?: { unique?: boolean }): Promise<void>
   rebuildIndexes(): Promise<void>

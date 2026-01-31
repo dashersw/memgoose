@@ -58,6 +58,11 @@ export class MemoryStorageStrategy<T extends object> implements StorageStrategy<
     this._indexes.clear()
   }
 
+  async drop(): Promise<void> {
+    // For memory storage, drop is the same as clear
+    await this.clear()
+  }
+
   // Index management
   async createIndex(
     fields: keyof T | Array<keyof T>,

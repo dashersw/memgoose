@@ -61,6 +61,7 @@ export {
   getModel,
   clearRegistry,
   disconnect,
+  dropDatabase,
   getDefaultDatabase
 } from './src/connection'
 

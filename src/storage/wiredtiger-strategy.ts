@@ -427,6 +427,27 @@ export class WiredTigerStorageStrategy<T extends object> implements StorageStrat
     }
   }
 
+  async drop(): Promise<void> {
+    // Close connections first
+    this.close()
+
+    // Clear in-memory data
+    this._data = []
+    this._queryIndexes.clear()
+
+    // Delete the entire WiredTiger data directory
+    const wtPath = path.join(this._dataPath, this._modelName)
+
+    try {
+      // Recursively delete the directory
+      if (fs.existsSync(wtPath)) {
+        await fs.promises.rm(wtPath, { recursive: true, force: true })
+      }
+    } catch (error: any) {
+      throw new Error(`Failed to delete WiredTiger directory: ${error.message}`)
+    }
+  }
+
   // Index management
   async createIndex(
     fields: keyof T | Array<keyof T>,

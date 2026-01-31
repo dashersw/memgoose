@@ -66,7 +66,8 @@ export class Database {
         dataPath: this._config.file.dataPath,
         modelName: name,
         persistMode: this._config.file.persistMode,
-        debounceMs: this._config.file.debounceMs
+        debounceMs: this._config.file.debounceMs,
+        compaction: this._config.file.compaction
       })
     } else if (this._config.storage === 'sqlite' && this._config.sqlite) {
       storage = new SqliteStorageStrategy<T>({
@@ -144,6 +145,47 @@ export class Database {
         await storage.clear()
       }
     }
+    // Clear model registry
+    this._modelRegistry.clear()
+  }
+
+  /**
+   * Drop the entire database - deletes all physical storage files and clears all models
+   * This is a destructive operation that cannot be undone
+   */
+  async dropDatabase(): Promise<void> {
+    // Clean up TTL intervals
+    this._ttlManager.cleanup()
+
+    // Drop storage for each model (deletes physical files)
+    for (const model of this._modelRegistry.values()) {
+      const storage = (model as unknown as { _storage: StorageStrategy<Record<string, unknown>> })
+        ._storage
+
+      // Flush any pending writes first
+      if (storage && typeof storage.flush === 'function') {
+        try {
+          await storage.flush()
+        } catch (error) {
+          console.warn('Warning: Failed to flush storage during drop:', error)
+        }
+      }
+
+      // Close connections
+      if (storage && typeof storage.close === 'function') {
+        try {
+          storage.close()
+        } catch (error) {
+          console.warn('Warning: Failed to close storage during drop:', error)
+        }
+      }
+
+      // Drop the storage (delete files)
+      if (storage && typeof storage.drop === 'function') {
+        await storage.drop()
+      }
+    }
+
     // Clear model registry
     this._modelRegistry.clear()
   }

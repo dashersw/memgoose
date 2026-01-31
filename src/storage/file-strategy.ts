@@ -97,6 +97,7 @@ export class FileStorageStrategy<T extends object> implements StorageStrategy<T>
   // Initialization state
   private _initialized = false
   private _initPromise?: Promise<void>
+  private _dropped = false
 
   constructor(options: FileStorageOptions) {
     this._dataPath = options.dataPath
@@ -377,6 +378,58 @@ export class FileStorageStrategy<T extends object> implements StorageStrategy<T>
     }
   }
 
+  async drop(): Promise<void> {
+    // Mark as dropped to prevent any further operations
+    this._dropped = true
+
+    // Clear all timers first
+    if (this._debounceTimer) {
+      clearTimeout(this._debounceTimer)
+      this._debounceTimer = undefined
+    }
+    if (this._compactionTimer) {
+      clearTimeout(this._compactionTimer)
+      this._compactionTimer = undefined
+    }
+
+    // Wait for any ongoing compaction to complete
+    while (this._compacting) {
+      await new Promise(resolve => setTimeout(resolve, 10))
+    }
+
+    // Clear in-memory data and indexes
+    this._data = []
+    this._index.clear()
+    this._queryIndexes.clear()
+    this._walOperationCount = 0
+    this._walOffset = 0
+    this._initialized = false
+
+    // Delete all files including schema
+    const schemaFilePath = path.join(this._dataPath, `${this._modelName}.schema.json`)
+
+    try {
+      await unlink(this._dataFilePath)
+    } catch {
+      // Ignore if file doesn't exist
+    }
+    try {
+      await unlink(this._walFilePath)
+    } catch {
+      // Ignore if file doesn't exist
+    }
+    try {
+      await unlink(this._indexFilePath)
+    } catch {
+      // Ignore if file doesn't exist
+    }
+    try {
+      await unlink(schemaFilePath)
+    } catch {
+      // Ignore if file doesn't exist
+    }
+  }
+
   private async _appendToWal(doc: T): Promise<void> {
     const id = this._getDocId(doc)
     const line = JSON.stringify(doc) + '\n'
@@ -451,8 +504,8 @@ export class FileStorageStrategy<T extends object> implements StorageStrategy<T>
   }
 
   private async _compact(): Promise<void> {
-    // Prevent concurrent compaction
-    if (this._compacting) return
+    // Prevent concurrent compaction or compaction after drop
+    if (this._compacting || this._dropped) return
 
     // Lock to prevent writes during compaction
     this._compacting = true

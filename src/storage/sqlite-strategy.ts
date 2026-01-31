@@ -346,6 +346,40 @@ export class SqliteStorageStrategy<T extends object> implements StorageStrategy<
     this._db.exec(`DELETE FROM ${this._tableName}`)
   }
 
+  async drop(): Promise<void> {
+    // Close the database connection first
+    this.close()
+
+    // Clear in-memory data
+    this._uniqueIndexes.clear()
+
+    // Delete the database file
+    try {
+      await fs.promises.unlink(this._dbFilePath)
+    } catch (error: any) {
+      if (error.code !== 'ENOENT') {
+        throw new Error(`Failed to delete database file: ${error.message}`)
+      }
+      // File doesn't exist - that's fine
+    }
+
+    // Also delete WAL and SHM files if they exist (SQLite WAL mode creates these)
+    const walPath = `${this._dbFilePath}-wal`
+    const shmPath = `${this._dbFilePath}-shm`
+
+    try {
+      await fs.promises.unlink(walPath)
+    } catch {
+      // Ignore if file doesn't exist
+    }
+
+    try {
+      await fs.promises.unlink(shmPath)
+    } catch {
+      // Ignore if file doesn't exist
+    }
+  }
+
   /**
    * SQL-based unique constraint checking
    */
