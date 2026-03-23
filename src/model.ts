@@ -753,13 +753,21 @@ export class Model<T extends object = Record<string, unknown>> {
               if (Array.isArray(v) && v.includes(null) && (field === null || field === undefined)) {
                 return true
               }
-              return Array.isArray(v) && v.includes(field)
+              if (!Array.isArray(v)) return false
+              if (Array.isArray(field)) {
+                return field.some(item => v.includes(item))
+              }
+              return v.includes(field)
             case '$nin':
               // MongoDB behavior: $nin: [null] excludes both null and undefined
               if (Array.isArray(v) && v.includes(null) && (field === null || field === undefined)) {
                 return false
               }
-              return Array.isArray(v) && !v.includes(field)
+              if (!Array.isArray(v)) return false
+              if (Array.isArray(field)) {
+                return field.every(item => !v.includes(item))
+              }
+              return !v.includes(field)
             case '$gt':
               return (field as unknown as number | Date) > (v as unknown as number | Date)
             case '$gte':
