@@ -31,6 +31,21 @@ test('Model - Query Operators', async t => {
     assert.ok(['Bob', 'Charlie'].includes(result?.name as string))
   })
 
+  await t.test('should match array elements with $in', async () => {
+    const User = model('User', new Schema({}))
+    await User.insertMany([
+      { name: 'One', tags: ['abc', 'def'] },
+      { name: 'Two', tags: ['abc'] },
+      { name: 'Three', tags: ['def'] }
+    ])
+
+    const results = await User.find({ tags: { $in: ['abc'] } })
+
+    assert.strictEqual(results.length, 2)
+    assert.ok(results.some(r => r.name === 'One'))
+    assert.ok(results.some(r => r.name === 'Two'))
+  })
+
   await t.test('should support $nin operator', async () => {
     const User = model('User', new Schema({}))
     await User.insertMany(testUsers)
