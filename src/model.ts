@@ -1,4 +1,5 @@
 import { Schema } from './schema'
+import { buildSearchIndexRegistry, type SearchIndexRegistry } from './search-index-registry'
 import { ObjectId } from './objectid'
 import { QueryBuilder } from './query-builder'
 import { DocumentQueryBuilder } from './document-query-builder'
@@ -98,6 +99,7 @@ export class Model<T extends object = Record<string, unknown>> {
   private _discriminatorValue?: string
   private _database?: Database // Database reference for getModel
   private _storageInitPromise: Promise<void> | null = null
+  private _searchIndexRegistry: SearchIndexRegistry | null = null
 
   constructor(
     schema?: Schema<T>,
@@ -123,6 +125,11 @@ export class Model<T extends object = Record<string, unknown>> {
         const indexKey = (Array.isArray(fields) ? fields : [fields]).join(',')
         const isUnique = uniqueIndexes.has(indexKey)
         this.createIndex(fields, { unique: isUnique })
+      }
+
+      const searchIdx = schema.getSearchIndexes()
+      if (searchIdx.length > 0) {
+        this._searchIndexRegistry = buildSearchIndexRegistry(searchIdx)
       }
 
       // Add static methods from schema
@@ -1715,6 +1722,10 @@ export class Model<T extends object = Record<string, unknown>> {
     return this.findOneAndDelete({ _id: id } as Query<T>)
   }
 
+  _getSearchIndexRegistry(): SearchIndexRegistry | null {
+    return this._searchIndexRegistry
+  }
+
   async aggregate<R = Record<string, unknown>>(pipeline: unknown[]): Promise<R[]> {
     await this._ensureStorageReady()
 
@@ -1770,6 +1781,13 @@ export class Model<T extends object = Record<string, unknown>> {
     }
     for (const fields of schema.getIndexes()) {
       mergedSchema.index(fields as keyof (T & D) | Array<keyof (T & D)>)
+    }
+
+    for (const d of this._schema.getSearchIndexes()) {
+      mergedSchema.searchIndex(d)
+    }
+    for (const d of schema.getSearchIndexes()) {
+      mergedSchema.searchIndex(d)
     }
 
     // Copy methods and statics
