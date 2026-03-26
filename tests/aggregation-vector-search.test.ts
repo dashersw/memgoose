@@ -247,10 +247,7 @@ describe('$vectorSearch aggregation', () => {
     ])
 
     assert.strictEqual(results.length, 2)
-    assert.deepStrictEqual(
-      results.map(d => d.name).sort(),
-      ['also', 'keep']
-    )
+    assert.deepStrictEqual(results.map(d => d.name).sort(), ['also', 'keep'])
     assert.ok(results.every(r => typeof r.score === 'number'))
   })
 
@@ -415,7 +412,11 @@ describe('$vectorSearch aggregation', () => {
   it('throws when queryVector contains non-finite or non-number values', async () => {
     await VectorModel.insertMany([{ name: 'a', embedding: [1, 0, 0] }])
 
-    for (const queryVector of [[NaN, 0, 0] as number[], [Infinity, 0, 0] as number[], ['1', 0, 0] as unknown as number[]]) {
+    for (const queryVector of [
+      [NaN, 0, 0] as number[],
+      [Infinity, 0, 0] as number[],
+      ['1', 0, 0] as unknown as number[]
+    ]) {
       await assert.rejects(
         () =>
           VectorModel.aggregate([

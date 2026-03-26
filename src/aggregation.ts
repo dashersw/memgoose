@@ -152,7 +152,7 @@ export type ProjectionExpression =
   | { $mergeObjects: (string | ProjectionExpression)[] }
   | { $objectToArray: string | ProjectionExpression }
   | { $arrayToObject: string | ProjectionExpression }
-  // Atlas Search / Vector Search relevance 
+  // Atlas Search / Vector Search relevance
   | { $meta: 'searchScore' | 'vectorSearchScore' }
   | string
   | number

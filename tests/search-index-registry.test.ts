@@ -1,9 +1,6 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert'
-import {
-  assertSearchTextPathAllowed,
-  buildSearchIndexRegistry
-} from '../src/search-index-registry'
+import { assertSearchTextPathAllowed, buildSearchIndexRegistry } from '../src/search-index-registry'
 import type { SearchIndexDescriptor } from '../src/schema'
 
 describe('buildSearchIndexRegistry', () => {

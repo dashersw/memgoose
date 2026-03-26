@@ -91,10 +91,7 @@ export class AggregationEngine<T extends object = Record<string, unknown>> {
     )
   }
 
-  private vectorSearch(
-    data: AggregationResult[],
-    stage: VectorSearchStage
-  ): AggregationResult[] {
+  private vectorSearch(data: AggregationResult[], stage: VectorSearchStage): AggregationResult[] {
     return runVectorSearchStage(data, stage, {
       resolveFieldPath: (doc, path) => this.resolveFieldPath(doc, path),
       matchDocument: (doc, query) =>
@@ -106,10 +103,7 @@ export class AggregationEngine<T extends object = Record<string, unknown>> {
     })
   }
 
-  private atlasSearch(
-    data: AggregationResult[],
-    stage: AtlasSearchStage
-  ): AggregationResult[] {
+  private atlasSearch(data: AggregationResult[], stage: AtlasSearchStage): AggregationResult[] {
     return runAtlasSearchStage(data, stage, {
       resolveFieldPath: (doc, path) => this.resolveFieldPath(doc, path),
       searchIndexRegistry: this.model._getSearchIndexRegistry()

@@ -28,7 +28,9 @@ function normalizeIndexName(name: string | undefined): string {
   return name && name.length > 0 ? name : DEFAULT_INDEX_NAME
 }
 
-function parseVectorFields(definition: Record<string, unknown>): Map<string, VectorFieldSpec> | null {
+function parseVectorFields(
+  definition: Record<string, unknown>
+): Map<string, VectorFieldSpec> | null {
   const fields = definition.fields
   if (!Array.isArray(fields)) return null
 
@@ -41,12 +43,17 @@ function parseVectorFields(definition: Record<string, unknown>): Map<string, Vec
     if (typeof path !== 'string' || !path) continue
 
     const dimRaw = f.numDimensions ?? f.dimensions
-    if (typeof dimRaw !== 'number' || !Number.isFinite(dimRaw) || !Number.isInteger(dimRaw)) continue
+    if (typeof dimRaw !== 'number' || !Number.isFinite(dimRaw) || !Number.isInteger(dimRaw))
+      continue
     const dimensions = dimRaw
     if (dimensions <= 0) continue
 
     let similarity: VectorSimilarity = 'cosine'
-    if (f.similarity === 'dotProduct' || f.similarity === 'euclidean' || f.similarity === 'cosine') {
+    if (
+      f.similarity === 'dotProduct' ||
+      f.similarity === 'euclidean' ||
+      f.similarity === 'cosine'
+    ) {
       similarity = f.similarity
     }
 
@@ -99,7 +106,10 @@ export function buildSearchIndexRegistry(
       continue
     }
 
-    if (desc.type === 'vectorSearch' || (desc.type === undefined && looksLikeVectorDefinition(def))) {
+    if (
+      desc.type === 'vectorSearch' ||
+      (desc.type === undefined && looksLikeVectorDefinition(def))
+    ) {
       const vectors = parseVectorFields(def)
       if (vectors) {
         registry.set(name, { kind: 'vectorSearch', vectors })

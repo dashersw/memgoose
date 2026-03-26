@@ -1,5 +1,9 @@
 import type { VectorSearchStage } from './aggregation'
-import { getVectorSpec, type SearchIndexRegistry, type VectorSimilarity } from './search-index-registry'
+import {
+  getVectorSpec,
+  type SearchIndexRegistry,
+  type VectorSimilarity
+} from './search-index-registry'
 
 export type VectorSearchStageDeps = {
   resolveFieldPath: (doc: Record<string, unknown>, path: string) => unknown

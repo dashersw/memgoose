@@ -8,10 +8,7 @@ describe('$search aggregation', () => {
     body: string
   }
 
-  const dynamicSchema = new Schema<Doc>(
-    { title: String, body: String },
-    { autoSearchIndex: true }
-  )
+  const dynamicSchema = new Schema<Doc>({ title: String, body: String }, { autoSearchIndex: true })
 
   dynamicSchema.searchIndex({
     name: 'dyn',
@@ -202,7 +199,10 @@ describe('$search aggregation', () => {
 
     assert.strictEqual(results.length, 2)
     assert.ok(results.every(r => typeof r.score === 'number'))
-    assert.deepStrictEqual(results.map(r => r.title), ['green apple', 'red apple'])
+    assert.deepStrictEqual(
+      results.map(r => r.title),
+      ['green apple', 'red apple']
+    )
   })
 
   it('chains $search with $addFields, $skip, $limit, and $facet', async () => {

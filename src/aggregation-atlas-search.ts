@@ -41,8 +41,7 @@ export function runAtlasSearchStage(
 
   for (const doc of docs) {
     const raw = resolveFieldPath(doc, pathRef)
-    const haystack =
-      raw === null || raw === undefined ? '' : String(raw).toLowerCase()
+    const haystack = raw === null || raw === undefined ? '' : String(raw).toLowerCase()
 
     let matched = 0
     for (const t of tokens) {
