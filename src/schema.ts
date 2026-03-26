@@ -143,10 +143,17 @@ export class DuplicateKeyError extends Error {
   }
 }
 
+export type SearchIndexDescriptor = {
+  name?: string
+  type?: 'search' | 'vectorSearch'
+  definition: Record<string, unknown>
+}
+
 // Schema options
 export type SchemaOptions = {
   timestamps?: boolean | { createdAt?: string | boolean; updatedAt?: string | boolean }
   discriminatorKey?: string
+  autoSearchIndex?: boolean
 }
 
 // Schema definition (simplified - just for type info and indexes)
@@ -165,6 +172,7 @@ export class Schema<T extends object = Record<string, unknown>> {
   private _preHooks: Map<string, HookFunction[]>
   private _postHooks: Map<string, HookFunction[]>
   private _options: SchemaOptions
+  private _searchIndexes: SearchIndexDescriptor[] = []
   // Methods and statics need `any` for maximum flexibility with different `this` types
   public methods: Record<string, (this: any, ...args: any[]) => any>
   public statics: Record<string, (...args: any[]) => any>
@@ -260,6 +268,15 @@ export class Schema<T extends object = Record<string, unknown>> {
 
   getIndexes(): Array<Array<keyof T>> {
     return this._indexes
+  }
+
+  searchIndex(desc: SearchIndexDescriptor): this {
+    this._searchIndexes.push(desc)
+    return this
+  }
+
+  getSearchIndexes(): ReadonlyArray<SearchIndexDescriptor> {
+    return this._searchIndexes
   }
 
   getUniqueIndexes(): Set<string> {

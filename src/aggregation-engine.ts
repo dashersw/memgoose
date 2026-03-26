@@ -13,10 +13,14 @@ import type {
   BucketStage,
   BucketAutoStage,
   FacetStage,
-  MergeStage
+  MergeStage,
+  VectorSearchStage,
+  AtlasSearchStage
 } from './aggregation'
 import type { Database } from './database'
 import { ObjectId } from './objectid'
+import { runVectorSearchStage } from './aggregation-vector-search'
+import { runAtlasSearchStage } from './aggregation-atlas-search'
 
 // Type for aggregation results which can be dynamically shaped
 type AggregationResult = Record<string, unknown>
@@ -71,6 +75,8 @@ export class AggregationEngine<T extends object = Record<string, unknown>> {
     if ('$facet' in stage) return await this.facet(data, stage.$facet)
     if ('$out' in stage) return await this.out(data, stage.$out)
     if ('$merge' in stage) return await this.merge(data, stage.$merge)
+    if ('$vectorSearch' in stage) return this.vectorSearch(data, stage.$vectorSearch)
+    if ('$search' in stage) return this.atlasSearch(data, stage.$search)
 
     throw new Error(`Unknown aggregation stage: ${Object.keys(stage)[0]}`)
   }
@@ -83,6 +89,31 @@ export class AggregationEngine<T extends object = Record<string, unknown>> {
         query
       )
     )
+  }
+
+  private vectorSearch(
+    data: AggregationResult[],
+    stage: VectorSearchStage
+  ): AggregationResult[] {
+    return runVectorSearchStage(data, stage, {
+      resolveFieldPath: (doc, path) => this.resolveFieldPath(doc, path),
+      matchDocument: (doc, query) =>
+        (this.model as unknown as { _matches: (d: unknown, q: Query<T>) => boolean })._matches(
+          doc,
+          query as Query<T>
+        ),
+      searchIndexRegistry: this.model._getSearchIndexRegistry()
+    })
+  }
+
+  private atlasSearch(
+    data: AggregationResult[],
+    stage: AtlasSearchStage
+  ): AggregationResult[] {
+    return runAtlasSearchStage(data, stage, {
+      resolveFieldPath: (doc, path) => this.resolveFieldPath(doc, path),
+      searchIndexRegistry: this.model._getSearchIndexRegistry()
+    })
   }
 
   private group(data: AggregationResult[], groupStage: GroupStage<T>): AggregationResult[] {
@@ -355,6 +386,15 @@ export class AggregationEngine<T extends object = Record<string, unknown>> {
     }
 
     if (typeof expr === 'object' && expr !== null) {
+      if ('$meta' in expr) {
+        const meta = (expr as { $meta: string }).$meta
+        if (meta === 'searchScore' || meta === 'vectorSearchScore') {
+          const s = doc.score
+          return typeof s === 'number' && Number.isFinite(s) ? s : null
+        }
+        throw new Error(`memgoose: unsupported $meta value "${meta}"`)
+      }
+
       if ('$concat' in expr) {
         return expr.$concat
           .map(part => this.evaluateExpression(part as ProjectionExpression, doc))

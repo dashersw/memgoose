@@ -6,6 +6,7 @@ export type {
   FieldOptions,
   ValidatorFunction,
   SchemaOptions,
+  SearchIndexDescriptor,
   SaveHookContext,
   PreDeleteHookContext,
   PostDeleteHookContext,
@@ -61,7 +62,9 @@ export type {
   LookupStage,
   UnwindStage,
   SortStage,
-  ReplaceRootStage
+  ReplaceRootStage,
+  VectorSearchStage,
+  AtlasSearchStage
 } from './src/aggregation'
 
 // Database and connection management (Mongoose-like API)

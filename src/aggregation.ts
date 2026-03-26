@@ -22,6 +22,23 @@ export type AggregationStage<T extends object = Record<string, unknown>> =
   | { $facet: FacetStage<T> }
   | { $out: string | { db?: string; coll: string } }
   | { $merge: MergeStage }
+  | { $vectorSearch: VectorSearchStage }
+  | { $search: AtlasSearchStage }
+
+/** Atlas $vectorSearch stage (subset). */
+export type VectorSearchStage = {
+  index?: string
+  path: string
+  queryVector: number[]
+  limit: number
+  numCandidates?: number
+  filter?: Record<string, unknown>
+}
+
+export type AtlasSearchStage = {
+  index?: string
+  text: { path: string; query: string }
+}
 
 // Group stage configuration
 export type GroupStage<_T = Record<string, unknown>> = {
@@ -135,6 +152,8 @@ export type ProjectionExpression =
   | { $mergeObjects: (string | ProjectionExpression)[] }
   | { $objectToArray: string | ProjectionExpression }
   | { $arrayToObject: string | ProjectionExpression }
+  // Atlas Search / Vector Search relevance 
+  | { $meta: 'searchScore' | 'vectorSearchScore' }
   | string
   | number
   | boolean
