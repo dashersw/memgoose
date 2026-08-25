@@ -1,9 +1,53 @@
+import { EventEmitter } from 'node:events'
 import { Database, DatabaseConfig } from './database'
 import { Schema } from './schema'
 import { Model } from './model'
 
 // Default database instance (auto-created in-memory)
 let defaultDatabase: Database = new Database()
+
+// Mongoose-compatible connection state: 0 = disconnected, 1 = connected.
+// The default database is usable without an explicit connect(), so this
+// tracks the explicit lifecycle only — applications that gate optional
+// database work on `connection.readyState === 1` behave as with mongoose.
+let readyState = 0
+
+/**
+ * Mongoose-compatible readyState values (like mongoose.STATES).
+ * memgoose connects synchronously, so 'connecting' is never reported;
+ * 'disconnecting' is observable while disconnect() awaits storage flushes.
+ */
+export const STATES = Object.freeze({
+  disconnected: 0,
+  connected: 1,
+  connecting: 2,
+  disconnecting: 3,
+  uninitialized: 99
+})
+
+/**
+ * Mongoose-compatible connection handle (like mongoose.connection).
+ * An EventEmitter exposing the lifecycle state, the default database under
+ * `db`, and a close() alias for disconnect(). Emits 'connected'/'open' on
+ * connect() and 'disconnected'/'close' on disconnect(), so bootstrap code
+ * registering listeners behaves as with mongoose.
+ */
+class Connection extends EventEmitter {
+  get readyState(): number {
+    return readyState
+  }
+
+  /** The active default Database instance (mongoose exposes the driver Db here). */
+  get db(): Database {
+    return defaultDatabase
+  }
+
+  async close(): Promise<void> {
+    await disconnect()
+  }
+}
+
+export const connection = new Connection()
 
 /**
  * Configure and connect to the default database (like mongoose.connect())
@@ -23,6 +67,9 @@ let defaultDatabase: Database = new Database()
  */
 export function connect(config: DatabaseConfig = {}): Database {
   defaultDatabase = new Database(config)
+  readyState = 1
+  connection.emit('connected')
+  connection.emit('open')
   return defaultDatabase
 }
 
@@ -87,7 +134,26 @@ export async function clearRegistry(): Promise<void> {
  * Disconnect from the default database
  */
 export async function disconnect(): Promise<void> {
-  await defaultDatabase.disconnect()
+  const database = defaultDatabase
+  const wasConnected = readyState === STATES.connected
+  // Storage flushes make disconnect genuinely asynchronous — report the
+  // 'disconnecting' state while they are in flight.
+  if (wasConnected) readyState = STATES.disconnecting
+  try {
+    await database.disconnect()
+  } finally {
+    // Only reset when no newer connect() replaced the database while this
+    // disconnect was in flight; a failed disconnect still ends disconnected
+    // (mongoose reaches 'disconnected' even on forced close). Events fire
+    // only on a genuine connected → disconnected transition.
+    if (defaultDatabase === database && readyState !== STATES.disconnected) {
+      readyState = STATES.disconnected
+      if (wasConnected) {
+        connection.emit('disconnected')
+        connection.emit('close')
+      }
+    }
+  }
 }
 
 /**

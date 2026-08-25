@@ -836,6 +836,39 @@ Gets a model from the default database registry.
 const User = getModel('User')
 ```
 
+### `connection`
+
+Mongoose-compatible connection handle (like `mongoose.connection`). An
+`EventEmitter` exposing:
+
+- `connection.readyState` — `0` disconnected, `1` connected (see `STATES`).
+  Tracks the explicit `connect()`/`disconnect()` lifecycle; the default
+  database stays usable without `connect()`, exactly as before.
+- `connection.db` — the active default `Database` instance.
+- `connection.close()` — alias for `disconnect()`.
+- Events: `connected`/`open` on connect, `disconnected`/`close` on disconnect.
+
+`dropDatabase()` and `clearRegistry()` leave the state connected, matching
+mongoose semantics for their counterparts.
+
+**Example:**
+
+```typescript
+import { connect, connection, STATES } from 'memgoose'
+
+connect({ storage: 'memory' })
+if (connection.readyState === STATES.connected) {
+  // optional database work
+}
+```
+
+### `STATES`
+
+Frozen map of mongoose-compatible `readyState` values:
+`{ disconnected: 0, connected: 1, connecting: 2, disconnecting: 3, uninitialized: 99 }`.
+memgoose connects synchronously, so `connecting` is never reported;
+`disconnecting` is observable while `disconnect()` awaits storage flushes.
+
 ### `async disconnect()`
 
 Disconnects the default database and flushes pending writes.
